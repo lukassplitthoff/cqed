@@ -1,0 +1,8 @@
+.vscode
+.ipynb_checkpoints
+*.pyc
+*.db
+*.dat
+*.png
+*.pdf
+cqed.egg-info
