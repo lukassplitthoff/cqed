@@ -1,6 +1,9 @@
 import numpy as np
 import broadbean as bb
 
+from qcodes.instrument_drivers.tektronix.AWG5208 import AWG5208
+from qcodes.instrument_drivers.tektronix.AWG5014 import Tektronix_AWG5014 as AWG5014
+
 from pytopo.qctools.hard_sweep import HardSweep
 
 ramp = bb.PulseAtoms.ramp
@@ -48,18 +51,26 @@ class BroadBeanSequence(HardSweep):
         1 : {
             'Vpp' : 1, 
             'offset' : 0,
+            'marker_hi' : [1, 1, 1, 1],
+            'marker_lo' : [0, 0, 0, 0],
         }, 
         2 : {
             'Vpp' : 1, 
             'offset' : 0,
+            'marker_hi' : [1, 1, 1, 1],
+            'marker_lo' : [0, 0, 0, 0],
         },
         3 : {
             'Vpp' : 1, 
             'offset' : 0,
+            'marker_hi' : [1, 1, 1, 1],
+            'marker_lo' : [0, 0, 0, 0],
         },
         4 : {
             'Vpp' : 1, 
             'offset' : 0,
+            'marker_hi' : [1, 1, 1, 1],
+            'marker_lo' : [0, 0, 0, 0],
         },
     }
 
@@ -82,13 +93,14 @@ class BroadBeanSequence(HardSweep):
         raise NotImplementedError
         
         
-    def setup(self, program_awg=True, start_awg=True):
+    def setup(self, program_awg=True, start_awg=True, stop_awg=True):
         super().setup()
         
-        self.awg.stop()
+        if stop_awg:
+            self.awg.stop()
         
-        if program_awg:
-            self.awg.clock_freq(self.sample_rate())
+        if program_awg:      
+            
             seq = self.sequence()
             
             for ch_no, ch_set in self.chan_settings.items():
@@ -112,17 +124,66 @@ class BroadBeanSequence(HardSweep):
             else:
                 raise ValueError("Unknown sweep_repeat setting '{}".format(self.sweep_repeat))
 
+            if isinstance(self.awg, AWG5014):
+                pkg = seq.outputForAWGFile()
+                self.awg.make_send_and_load_awg_file(*pkg[:])
 
-            pkg = seq.outputForAWGFile()
-            self.awg.make_send_and_load_awg_file(*pkg[:])
-        
-            for ch_no, ch_desc in self.chan_map.items():
-                self.awg.set('ch{}_state'.format(ch_no), 1)
+                for ch_no in self.chan_map.items():
+                    self.awg.set('ch{}_state'.format(ch_no), 1)
 
-            for ch_no, ch_set in self.chan_settings.items():
-                self.awg.set('ch{}_amp'.format(ch_no), ch_set['Vpp'])
-                self.awg.set('ch{}_offset'.format(ch_no), ch_set['offset'])
+                for ch_no, ch_set in self.chan_settings.items():
+                    self.awg.set('ch{}_amp'.format(ch_no), ch_set['Vpp'])
+                    self.awg.set('ch{}_offset'.format(ch_no), ch_set['offset'])
 
+                self.awg.clock_freq(self.sample_rate())
+
+            elif isinstance(self.awg, AWG5208):
+                # forge the sequence
+                forged_sequence = seq.forge()
+
+                # create a sequence file
+                seqx_file = self.awg.make_SEQX_from_forged_sequence(
+                    forged_sequence, [1 for i in self.chan_map.keys()], seq.name)
+                seqx_file_name = f'{seq.name}.seqx'
+
+                # clear lists of sequences and waveforms on the instrument in order
+                # to prevent cluttering
+                self.awg.clearSequenceList()
+                self.awg.clearWaveformList()
+
+                # send the sequence file to the instrument and load it
+                self.awg.sendSEQXFile(seqx_file, filename=seqx_file_name)
+                self.awg.loadSEQXFile(seqx_file_name)
+
+                self.awg.sample_rate(self.sample_rate())
+
+                # load seqs to channels
+                for ch_no, ch_desc in self.chan_map.items():
+                    chan = self.awg.channels[ch_no-1]
+
+                    track_number = 1
+                    chan.setSequenceTrack(seq.name, track_number)
+
+                    # NOTE: assuming the sequence file contains a single waveform
+                    waveform_list = self.awg.waveformList
+                    if len(waveform_list) != 1:
+                        raise Exception('There are 0 or more than 1 waveforms in the list. Only single waveform assignment is supported.')
+                    waveform_name = waveform_list[0]
+                    chan.setWaveform(waveform_name)  # usually wfm_1_1_1
+
+                    chan.resolution(12)
+                    chan.set('state', 1)
+
+                for ch_no, ch_set in self.chan_settings.items():
+                    self.awg.channels[ch_no-1].set('awg_amplitude', ch_set['Vpp'])
+                    for i in range(1, 5):
+                        self.awg.channels[ch_no-1].set('marker{}_high'.format(i), ch_set['marker_hi'][i-1])
+                        self.awg.channels[ch_no-1].set('marker{}_low'.format(i), ch_set['marker_lo'][i-1])
+
+            
         if start_awg:
-            self.awg.start()
+            if isinstance(self.awg, AWG5014):
+                self.awg.start()
+            elif isinstance(self.awg, AWG5208):
+                self.awg.play()
 
