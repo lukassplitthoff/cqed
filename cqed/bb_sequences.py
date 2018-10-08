@@ -38,6 +38,11 @@ class TriggeredReadoutSequence(BroadBeanSequence):
         bps = BluePrints(self.chan_map, sample_rate=self.sample_rate(), length=self.seq_len())
         bps['ro_trigger'] = [(self.pre_trigger_delay(), self.trigger_len())]
 
+        if 'debug_pulse' in bps.map:
+            bps['debug_pulse'].insertSegment(0, ramp, (0,0), 
+                dur=self.pre_trigger_delay() + self.post_trigger_delay())
+            bps['debug_pulse'].insertSegment(1, sine, (1e6, 0.1, 0, 0), 
+                dur=self.seq_len() - (self.pre_trigger_delay() + self.post_trigger_delay()))
 
         try:
             bps['ro_gate'] = [(self.pre_trigger_delay() + self.post_trigger_delay(),
