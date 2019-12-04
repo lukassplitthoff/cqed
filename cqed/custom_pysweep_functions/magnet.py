@@ -7,6 +7,7 @@ from pysweep.core.measurementfunctions import MakeMeasurementFunction
 from pysweep.core.sweepobject import SweepObject
 from pysweep.databackends.base import DataParameter
 import numpy as np
+from warnings import showwarning
 
 
 @MakeMeasurementFunction([DataParameter(name='x', unit='T'), 
@@ -37,6 +38,11 @@ def sweep_phi(r, theta, points, max_field_strength=1.5):
     Output:
     pysweep.SweepObject
     '''
+
+    if max_field_strength > 1.5:
+        showwarning('Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards.'
+                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 42)
+
     @MakeMeasurementFunction([])
     def point_function(d):
         return points, []
@@ -81,6 +87,11 @@ def sweep_theta(r, phi, points, max_field_strength=1.5):
     Output:
     pysweep.SweepObject
     '''
+
+    if max_field_strength > 1.5:
+        showwarning('Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards.'
+                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 91)
+
     @MakeMeasurementFunction([])
     def point_function(d):
         return points, []
@@ -129,6 +140,11 @@ def sweep_r(phi, theta, points, max_field_strength=1.5):
     Output:
     pysweep.SweepObject
     '''
+
+    if max_field_strength > 1.5:
+        showwarning('Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards.'
+                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 144)
+
     @MakeMeasurementFunction([])
     def point_function(d):
         return points, []
