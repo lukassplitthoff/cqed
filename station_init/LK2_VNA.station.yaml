@@ -1,0 +1,38 @@
+instruments:
+
+  vna:
+    type: qcodes.instrument_drivers.rohde_schwarz.ZNB.ZNB
+    address: TCPIP::169.254.31.77::inst0::INSTR 
+    enable_forced_reconnect: true
+   
+    init:
+      init_s_params: false 
+  
+  mgnt:
+    type: qcodes.instrument_drivers.oxford.MercuryiPS_VISA.MercuryiPS
+    address: TCPIP0::169.254.178.129::7020::SOCKET
+    enable_forced_reconnect: true
+
+    init:
+      field_limits: cqed.custom_pysweep_functions.magnet.field_limit
+
+  sim_mgnt:
+    type: qcodes.instrument_drivers.oxford.MercuryiPS_VISA.MercuryiPS
+    address: TCPIP0::101.101.101.101::7020::SOCKET
+    enable_forced_reconnect: true
+
+    init:
+      visalib: 'MercuryiPS.yaml@sim'
+      field_limits: !!python/name:cqed.custom_pysweep_functions.magnet.field_limit
+
+  ivvi:
+    type:  qcodes_contrib_drivers.drivers.QuTech.IVVI.IVVI
+    address: ASRL4
+    enable_forced_reconnect: true
+    
+    init:
+      numdacs: 16
+    
+    
+    
+  
