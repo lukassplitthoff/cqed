@@ -9,6 +9,24 @@ from pysweep.databackends.base import DataParameter
 import numpy as np
 from warnings import showwarning
 
+def field_limit(Bx, By, Bz, max_field_strength=1.5) -> bool:
+    ''' Calculate the absolute field amplitude and check against the max_field_strength.
+    For use with QCoDeS oxford.MercuryiPS_VISA driver.
+    Inputs:
+    Bx, By, Bz (float): magnetic field components
+    Outputs:
+    bool: true, if sqrt(Bx^2+By^2+Bz^2) < max_field_strength; else false
+    '''
+    if max_field_strength > 1.5:
+        showwarning('Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards. '
+                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 20)
+    
+    if np.sqrt(Bx**2 + By**2 + Bz**2) > max_field_strength:
+        return bool(False)
+    
+    else:
+        return bool(True)
+
 
 @MakeMeasurementFunction([DataParameter(name='x', unit='T'), 
                           DataParameter(name='y', unit='T'),
@@ -41,7 +59,7 @@ def sweep_phi(r, theta, points, max_field_strength=1.5):
 
     if max_field_strength > 1.5:
         showwarning('Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards.'
-                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 42)
+                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 60)
 
     @MakeMeasurementFunction([])
     def point_function(d):
@@ -90,7 +108,7 @@ def sweep_theta(r, phi, points, max_field_strength=1.5):
 
     if max_field_strength > 1.5:
         showwarning('Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards.'
-                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 91)
+                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 109)
 
     @MakeMeasurementFunction([])
     def point_function(d):
@@ -143,7 +161,7 @@ def sweep_r(phi, theta, points, max_field_strength=1.5):
 
     if max_field_strength > 1.5:
         showwarning('Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards.'
-                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 144)
+                    'Are you sure you want to go to more than 1.5 T?', ResourceWarning, 'cqed/cqed/custom_pysweep_functions/magnet', 162)
 
     @MakeMeasurementFunction([])
     def point_function(d):
