@@ -8,22 +8,12 @@ instruments:
     init:
       init_s_params: false 
   
+ 
   mgnt:
     type: qcodes.instrument_drivers.oxford.MercuryiPS_VISA.MercuryiPS
     address: TCPIP0::169.254.178.129::7020::SOCKET
     enable_forced_reconnect: true
 
-    init:
-      field_limits: cqed.custom_pysweep_functions.magnet.field_limit
-
-  sim_mgnt:
-    type: qcodes.instrument_drivers.oxford.MercuryiPS_VISA.MercuryiPS
-    address: TCPIP0::101.101.101.101::7020::SOCKET
-    enable_forced_reconnect: true
-
-    init:
-      visalib: 'MercuryiPS.yaml@sim'
-      field_limits: !!python/name:cqed.custom_pysweep_functions.magnet.field_limit
 
   ivvi:
     type:  qcodes_contrib_drivers.drivers.QuTech.IVVI.IVVI
