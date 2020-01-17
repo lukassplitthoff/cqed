@@ -41,6 +41,30 @@ def measure_magnet_components(d):
     z_meas = station.mgnt.z_measured()
     return [x_meas, y_meas, z_meas] 
 
+@MakeMeasurementFunction([DataParameter(name='r', unit='T'), 
+                          DataParameter(name='theta', unit='deg'),
+                          DataParameter(name='phi', unit='deg')])
+def measure_magnet_components_sph(d):
+    ''' Measure the x, y, z component of the magnet, convert to spherical using the 
+    ISO 80000-2:2009 physics convention for the (r, theta, phi) <--> (x, y, z) definition 
+    and return as list. 
+    output: [r, theta, phi] 
+    r (float): magentic field strength, unit: T
+    theta (float): inclination angle, unit: degrees, 0 <= theta <= 180
+    phi (float): the azimuth (in plane) angle, unit: degrees, range: 0 <= phi < 360
+    '''
+    station = d['STATION']
+    x = station.mgnt.x_measured()
+    y = station.mgnt.y_measured()
+    z = station.mgnt.z_measured()
+
+    r_meas = np.sqrt(x**2+y**2+z**2)
+    phi_meas = np.arctan2(y,x)/np.pi*180
+    if phi_meas < 0:
+        phi_meas += 360
+    theta_meas = np.arccos(z/r_meas)/np.pi*180
+
+    return [r_meas, theta_meas, phi_meas] 
 
 def sweep_phi(r, theta, points, max_field_strength=1.5):
     ''' Generate a pysweep.SweepObject to sweep phi at fixed amplitude and theta.
@@ -68,11 +92,11 @@ def sweep_phi(r, theta, points, max_field_strength=1.5):
     @MakeMeasurementFunction([])
     def set_function(phi, d):
 
-        assert max_field_strength>r>0., 'The field amplitude must not exceed {} and be lager than 0.' \
+        assert max_field_strength>r>0., 'The field amplitude must not exceed {} and be larger than 0.' \
                                         ' Upper limit can be adjusted with kwarg: max_field_strength.' \
                                         ' Proceed with caution (Mu-metal shields do not appreciate high fields!)'.format(max_field_strength)
         assert 0.<=theta<=180., 'The inclination angle must be equal or lager than 0 and smaller or equal than 180. Change setting!'  
-        assert 0.<=phi<=2*180., 'The azimuth angle must be equal or lager than 0 and smaller or equal than 360. Change setting!'  
+        assert 0.<=phi<=2*180., 'The azimuth angle must be equal or larger than 0 and smaller or equal than 360. Change setting!'  
         
         station = d['STATION']
         
