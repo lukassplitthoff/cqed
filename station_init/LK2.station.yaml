@@ -5,7 +5,7 @@ instruments:
     address: TCPIP::169.254.31.77::inst0::INSTR 
     enable_forced_reconnect: true
     init:
-      init_s_params: false 
+      init_s_params: false
   
   mgnt:
     type: qcodes.instrument_drivers.oxford.MercuryiPS_VISA.MercuryiPS
@@ -22,6 +22,11 @@ instruments:
   TWPA_pump:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
     address: TCPIP0::169.254.2.20
+    enable_forced_reconnect: true
+
+  Keithley3:
+    type: qcodes.instrument_drivers.tektronix.Keithley_2000.Keithley_2000
+    address: GPIB0::13::INSTR
     enable_forced_reconnect: true
 
 #################################
