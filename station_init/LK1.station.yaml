@@ -1,0 +1,52 @@
+instruments:
+
+  vna:
+    type: qcodes.instrument_drivers.rohde_schwarz.ZNB.ZNB
+    address: TCPIP::169.254.164.139::inst0::INSTR 
+    enable_forced_reconnect: true
+    init:
+      init_s_params: false 
+  
+  mgnt:
+    type: qcodes.instrument_drivers.oxford.MercuryiPS_VISA.MercuryiPS
+    address: TCPIP0::169.254.111.112::7020::SOCKET
+    enable_forced_reconnect: true
+
+  ivvi:
+    type:  qcodes_contrib_drivers.drivers.QuTech.IVVI.IVVI
+    address: ASRL1
+    enable_forced_reconnect: true
+    init:
+      numdacs: 16
+
+  TWPA_pump:
+    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
+    address: TCPIP0::169.254.248.54
+    enable_forced_reconnect: true
+
+#################################
+# Alazar measurement components #
+#################################
+  alazar:
+    type: qcodes.instrument_drivers.AlazarTech.ATS9870.AlazarTech_ATS9870
+    enable_forced_reconnect: true
+
+  awg:
+    type: qcodes.instrument_drivers.tektronix.AWG5014.Tektronix_AWG5014
+    address: TCPIP0::169.254.193.163::inst0::INSTR
+    enable_forced_reconnect: true
+  
+  qubsrc:
+    type: qcodes.instrument_drivers.agilent.E8267C.E8267
+    address: GPIB0::29::INSTR
+    enable_forced_reconnect: true
+
+  LO:
+    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
+    address: TCPIP0::169.254.103.129
+    enable_forced_reconnect: true
+
+  REF:
+    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
+    address: TCPIP0::169.254.135.59
+    enable_forced_reconnect: true     
