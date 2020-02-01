@@ -219,3 +219,63 @@ def sweep_r(phi, theta, points, max_field_strength=1.5):
         return []
     
     return SweepObject(set_function = set_function, unit = "T", label = "r", point_function = point_function, dataparameter=None )
+
+#TODO:
+# Generate function, which ramps the field, optimizes the angle at predefined
+# values and also saves the optimization data in the QCoDeS database
+
+def sweep_r_with_alignment(theta, phi, points, FieldAligner, optimization_at=None, optimize_first=True, max_field_strength=1.5):
+
+    if max_field_strength > 1.5:
+        showwarning(
+            'Be aware that mu-metal shields are saturated by too large magnetic fields and will not work afterwards.'
+            'Are you sure you want to go to more than 1.5 T?', ResourceWarning,
+            'cqed/cqed/custom_pysweep_functions/magnet', 225)
+
+    if optimize_first:
+        FieldAligner.optimize_x()
+        #ToDo: adjustment of theta and phi after field optimization
+
+    if optimization_at is None:
+        # default optimization of angle every 100 mT
+        optimization_at = np.arange(points[0], points[-1], 100e-3)
+    optimization_value_index = 1
+
+    @MakeMeasurementFunction([])
+    def point_function(d):
+        return points, []
+
+    @MakeMeasurementFunction([])
+    def set_function(r, d):
+        # Here we use the ISO 80000-2:2009 physics convention for the (r, theta, phi) <--> (x, y, z) definition.
+        # Note that r is the radial distance, theta the inclination and phi the azimuth (in-plane) angle.
+        # For uniqueness, we restrict the parameter choice to r>=0, 0<= theta <= pi and 0<= phi <= 2pi.
+        # The units are: r in T, theta in degrees, phi in degrees.
+
+        assert max_field_strength > r > 0., 'The field amplitude must not exceed {} and be lager than 0.' \
+                                            ' Upper limit can be adjusted with kwarg: max_field_strength.' \
+                                            ' Proceed with caution (Mu-metal shields do not appreciate high fields!)'.format(
+            max_field_strength)
+        assert 0. <= theta <= 180., 'The inclination angle must be equal or lager than 0 and smaller or equal than 180. Change setting!'
+        assert 0. <= phi <= 2 * 180., 'The azimuth angle must be equal or lager than 0 and smaller or equal than 360. Change setting!'
+
+        station = d['STATION']
+
+        x = r * np.sin(np.radians(theta)) * np.cos(np.radians(phi))
+        y = r * np.sin(np.radians(theta)) * np.sin(np.radians(phi))
+        z = r * np.cos(np.radians(theta))
+
+        station.mgnt.x_target(x)
+        station.mgnt.y_target(y)
+        station.mgnt.z_target(z)
+
+        station.mgnt.ramp(mode='safe')
+
+        if r >= optimization_at[optimization_value_index]:
+            FieldAligner.optimize_x()
+            optimization_value_index += 1
+            #TODO: update theta and phi after field optimization
+        return []
+
+    return SweepObject(set_function=set_function, unit="T", label="r", point_function=point_function,
+                       dataparameter=None)
