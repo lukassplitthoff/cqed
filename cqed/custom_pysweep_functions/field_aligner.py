@@ -7,6 +7,11 @@ import numpy as np
 from time import sleep
 import matplotlib.pyplot as plt
 
+# TODO:
+# test code
+# preserve VNA status prior to field optimization
+# save vna traces during field optimization using QCoDeS
+
 
 class FieldAligner:
 
