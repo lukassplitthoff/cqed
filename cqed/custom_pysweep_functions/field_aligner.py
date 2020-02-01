@@ -57,14 +57,17 @@ class FieldAligner:
 
     def find_resonance(self):
 
-        self.vna_trace.start(self.current_f0 - self.search_span / 2.)
-        self.vna_trace.stop(self.current_f0 + self.search_span / 2.)
-        self.vna_trace.npts(int(self.search_span / self.frq_resolution) + 1)
-        self.vna_trace.bandwidth(self.vna_bw)
-        self.vna_trace.power(self.vna_pwr)
-        self.vna_trace.avg(self.vna_avgs)
+        # Preserve VNA setting of potential measurement
+        with self.vna_trace.status.set_to(1):
+            self.vna_trace.start(self.current_f0 - self.search_span / 2.)
+            self.vna_trace.stop(self.current_f0 + self.search_span / 2.)
+            self.vna_trace.npts(int(self.search_span / self.frq_resolution) + 1)
+            self.vna_trace.bandwidth(self.vna_bw)
+            self.vna_trace.power(self.vna_pwr)
+            self.vna_trace.avg(self.vna_avgs)
 
-        data = return_vna_trace(self.d)
+            data = return_vna_trace(self.d)
+
         return data[0][np.argmin(data[1])]
 
     def optimize_x(self):
