@@ -12,6 +12,11 @@ instruments:
     address: TCPIP0::169.254.178.129::7020::SOCKET
     enable_forced_reconnect: true
 
+  yoko:
+    type: qcodes.instrument_drivers.yokogawa.GS200.GS200
+    address: TCPIP0::169.254.1.9::inst0::INSTR
+    enable_forced_reconnect: true 
+
   ivvi:
     type:  qcodes_contrib_drivers.drivers.QuTech.IVVI.IVVI
     address: ASRL4
@@ -19,7 +24,7 @@ instruments:
     init:
       numdacs: 16
 
-  TWPA_pump:
+  TWPA:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
     address: TCPIP0::169.254.2.20
     enable_forced_reconnect: true
@@ -43,7 +48,7 @@ instruments:
   
   qubsrc:
     type: qcodes.instrument_drivers.agilent.E8267C.E8267
-    address: GPIB0::29::INSTR
+    address: TCPIP0::169.254.240.30
     enable_forced_reconnect: true
 
   LO:
@@ -51,7 +56,7 @@ instruments:
     address: TCPIP0::169.254.103.129
     enable_forced_reconnect: true
 
-  REF:
+  RF:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
     address: TCPIP0::169.254.135.59
     enable_forced_reconnect: true     

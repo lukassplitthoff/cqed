@@ -2,7 +2,7 @@ instruments:
 
   vna:
     type: qcodes.instrument_drivers.rohde_schwarz.ZNB.ZNB
-    address: TCPIP::169.254.164.139::inst0::INSTR 
+    address: TCPIP::169.254.82.128::inst0::INSTR #TCPIP::169.254.164.139::inst0::INSTR (VNA 1)
     enable_forced_reconnect: true
     init:
       init_s_params: false 
@@ -23,6 +23,21 @@ instruments:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
     address: TCPIP0::169.254.248.54
     enable_forced_reconnect: true
+
+  Keithley1:
+    type: qcodes.instrument_drivers.tektronix.Keithley_2000.Keithley_2000
+    address: GPIB11::16::INSTR
+    enable_forced_reconnect: true 
+
+  yoko:
+    type: qcodes.instrument_drivers.yokogawa.GS200.GS200
+    address: TCPIP0::169.254.1.9::inst0::INSTR
+    enable_forced_reconnect: true   
+
+  E36313A:
+    type: qcodes_contrib_drivers.drivers.Keysight.Keysight_E36313A.E36313A
+    address: TCPIP::169.254.108.91::inst0::INSTR
+    enable_forced_reconnect: true 
 
 #################################
 # Alazar measurement components #
