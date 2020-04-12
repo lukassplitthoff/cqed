@@ -54,9 +54,9 @@ def measure_magnet_components_sph(d):
     phi (float): the azimuth (in plane) angle, unit: degrees, range: 0 <= phi < 360
     '''
     station = d['STATION']
-    x = station.mgnt.x_measured()
-    y = station.mgnt.y_measured()
-    z = station.mgnt.z_measured()
+    x = station.mgnt.x_measured()+1e-9 #avoiding dividing by true zero 
+    y = station.mgnt.y_measured()+1e-9
+    z = station.mgnt.z_measured()+1e-9
 
     r_meas = np.sqrt(x**2+y**2+z**2)
     phi_meas = np.arctan2(y,x)/np.pi*180
