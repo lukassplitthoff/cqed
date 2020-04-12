@@ -73,7 +73,7 @@ class FieldAligner:
 
         """ Wiggle the x-axis of the magnetic field up and down until the
         objective is optimized to the desired accuracy.
-        Picture a Roombah, I have been told.
+
         Inputs:
         max_magnitude (float): maximal magnetic field value for x, unit: T
         wiggle_step (float): initial step for changes in magnetic field, unit: T
@@ -98,12 +98,12 @@ class FieldAligner:
             if abs(pos + direction * wiggle_step) > self.max_amplitude:
                 raise Exception('X-axis magnitude limit reached.')
 
-            print('f0 = {0:.4f} GHz'.format(self.current_f0 / 1e9),
-                  '{0:.4f} T'.format(self.mgnt.x_measured()), '->',
-                  '{0:.4f} T'.format(pos + direction * wiggle_step))
+            print('f0 = {0:.4f} GHz, sweeping from '.format(self.current_f0 / 1e9) +
+                  '{0:.4f} mT to '.format(self.mgnt.x_measured()*1000) +
+                  '{0:.4f} mT'.format((pos + direction * wiggle_step)*1000))
 
             self.mgnt.x_target(pos + direction * wiggle_step)
-            self.mgnt.ramp(mode='safe')
+            self.mgnt.x_ramp_to_target()
             sleep(1.)
             newpos = self.mgnt.x_measured()
 
@@ -118,20 +118,26 @@ class FieldAligner:
             if new_objective < self.current_f0:
                 self.current_f0 = new_objective
                 direction = -1 * direction
+                print('Turning around')
 
                 if direction == 1:
-                    # should we round this to 0.1mT?
+                    # rounding to multiples of 5uT because 0.15mA is the current setting resolution of the mercuryIPS & the coil constant is around 58A/T.
                     wiggle_step = wiggle_step / 2.
+                    5e-6*round(float(wiggle_step)/5e-6)
+                    if wiggle_step>self.min_wiggle:
+                        print('Halving step size')
             else:
                 self.current_f0 = new_objective
 
         print('Optimization finished after {} steps'.format(self.nsteps),
-              '\nTarget value from {0:.4f} GHz to {0:.4f} GHz'.format(
-                  self.objectives_meas[0], self.objectives_meas[-1]),
+              '\nTarget value from {0:.4f} GHz to {0:.4f} GHz'.format(self.objectives_meas[0], self.objectives_meas[-1]),
               '\nX-field = {0:.4f} T'.format(self.mgnt.x_measured()))
 
     def plot_optimization(self):
-
-        plt.plot(self.locations, self.objectives_meas)
-        plt.scatter(self.locations, self.objectives_meas, c=self.objectives_meas)
+        plt_xs = np.array(self.locations)
+        plt_ys = np.array(self.objectives_meas)
+        plt.plot(plt_xs*1000, plt_ys)
+        plt.scatter(plt_xs*1000, plt_ys, c=plt_ys)
         plt.colorbar()
+        plt.xlabel('X field [mT]')
+        plt.ylabel('Resonance frequency [GHz]')
