@@ -102,11 +102,12 @@ class FieldAligner:
                   '{0:.3f} mT to '.format(self.mgnt.x_measured()*1000) +
                   '{0:.3f} mT'.format((pos + direction * wiggle_step)*1000))
 
-            #self.mgnt.x_target(pos + direction * wiggle_step)
-            #self.mgnt.x_ramp_to_target()
+            self.mgnt.x_target(pos + direction * wiggle_step)
+            self.mgnt.x_ramp_to_target()
             sleep(1.)
             newpos = self.mgnt.x_measured()
-
+            
+            #I dont think we need this anymore
             # if np.abs(pos - newpos) < 0.8 * wiggle_step:
             #     continue
 
