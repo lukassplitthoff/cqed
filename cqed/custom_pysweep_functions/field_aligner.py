@@ -14,9 +14,9 @@ import matplotlib.pyplot as plt
 
 class FieldAligner:
 
-    def __init__(self, station=station, f0=None, search_span=25e6,
+    def __init__(self, station=None, f0=None, search_span=25e6,
                  frq_resolution=200e3, max_field_amp=10e-3, wiggle_step=0.4e-3,
-                 min_wiggle=0.1e-3, vna_avgs=None, vna_bw=None, vna_pwr=None):
+                 min_wiggle=0.1e-3, vna_avgs=None, vna_bw=None, vna_pwr=None, chan='S21'):
 
         self.d = {'STATION': station}
         self.vna_trace = getattr(station.vna.channels, chan)
@@ -98,17 +98,17 @@ class FieldAligner:
             if abs(pos + direction * wiggle_step) > self.max_amplitude:
                 raise Exception('X-axis magnitude limit reached.')
 
-            print('f0 = {0:.4f} GHz'.format(self.current_f0 / 1e9),
-                  '{0:.4f} T'.format(self.mgnt.x_measured()), '->',
-                  '{0:.4f} T'.format(pos + direction * wiggle_step))
+            print('f0 = {0:.4f} GHz, sweeping from '.format(self.current_f0 / 1e9) +
+                  '{0:.3f} mT to '.format(self.mgnt.x_measured()*1000) +
+                  '{0:.3f} mT'.format((pos + direction * wiggle_step)*1000))
 
-            self.mgnt.x_target(pos + direction * wiggle_step)
-            self.mgnt.ramp(mode='safe')
+            #self.mgnt.x_target(pos + direction * wiggle_step)
+            #self.mgnt.x_ramp_to_target()
             sleep(1.)
             newpos = self.mgnt.x_measured()
 
-            if np.abs(pos - newpos) < 0.8 * wiggle_step:
-                continue
+            # if np.abs(pos - newpos) < 0.8 * wiggle_step:
+            #     continue
 
             new_objective = self._target_fcn()
             self.objectives_meas.append(new_objective)
@@ -118,20 +118,25 @@ class FieldAligner:
             if new_objective < self.current_f0:
                 self.current_f0 = new_objective
                 direction = -1 * direction
+                print('Turning around')
 
                 if direction == 1:
-                    # should we round this to 0.1mT?
+                    # rounding to multiples of 5uT because 0.15mA is the current setting resolution of the mercuryIPS & the coil constant is around 58A/T.
                     wiggle_step = wiggle_step / 2.
+                    wiggle_step = 5e-6*round(float(wiggle_step)/5e-6)
+                    if wiggle_step>self.min_wiggle:
+                        print('Halving step size')
             else:
                 self.current_f0 = new_objective
 
         print('Optimization finished after {} steps'.format(self.nsteps),
-              '\nTarget value from {0:.4f} GHz to {0:.4f} GHz'.format(
-                  self.objectives_meas[0], self.objectives_meas[-1]),
-              '\nX-field = {0:.4f} T'.format(self.mgnt.x_measured()))
+              '\nTarget value from {0:.4f} GHz to '.format(self.objectives_meas[0]/1e9)+'{0:.4f} GHz'.format(self.objectives_meas[-1]/1e9),
+              '\nFinal X-field = {0:.3f} mT'.format(self.mgnt.x_measured()*1000))
 
     def plot_optimization(self):
-
-        plt.plot(self.locations, self.objectives_meas)
-        plt.scatter(self.locations, self.objectives_meas, c=self.objectives_meas)
-        plt.colorbar()
+        plt_xs = np.array(self.locations)
+        plt_ys = np.array(self.objectives_meas)
+        plt.plot(plt_xs*1000, plt_ys/1e9)
+        plt.scatter(plt_xs*1000, plt_ys/1e9, c=range(len(plt_xs))) #color now encodes order of measurement
+        plt.xlabel('X field [mT]')
+        plt.ylabel('Resonance frequency [GHz]')
