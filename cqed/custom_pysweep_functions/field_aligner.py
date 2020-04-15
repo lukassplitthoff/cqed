@@ -3,7 +3,6 @@
 # cQED group @Kouwenhoven-lab TU Delft
 
 from cqed.custom_pysweep_functions.vna import return_vna_trace
-from cqed.custom_pysweep_functions.magnet import measure_magnet_components_sph
 import numpy as np
 from time import sleep
 import matplotlib.pyplot as plt
@@ -50,13 +49,9 @@ class FieldAligner:
         else:
             self.vna_pwr = vna_pwr
 
-        if f0 is None:
-            self.current_f0 = self.find_resonance()
-            self.optimized_f0 = self.current_f0
-        else:
-            self.current_f0 = f0
-            self.optimized_f0 = f0
-        
+
+        self.current_f0 = f0
+        self.optimized_f0 = f0
         self.search_span = search_span
         self.frq_resolution = frq_resolution
         self._target_fcn = self.find_resonance
@@ -120,18 +115,7 @@ class FieldAligner:
                   '{0:.3f} mT'.format((pos + direction * wiggle_step)*1000))
 
             self.x_field_par(pos + direction * wiggle_step)
-            sleep(10.)
-            
-            # if self.current_source = 'Oxford':
-            #     self.mgnt.x_target(pos + direction * wiggle_step)
-            #     self.mgnt.x_ramp_to_target()
-            #     sleep(1.)
-            #     newpos = self.mgnt.x_measured()
-
-            # if self.current_source = 'Keysight':
-
-
-
+            sleep(.)
             #I dont think we need this anymore
             # if np.abs(pos - newpos) < 0.8 * wiggle_step:
             #     continue
