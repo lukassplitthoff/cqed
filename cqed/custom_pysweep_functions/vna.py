@@ -10,7 +10,17 @@ from pysweep.databackends.base import DataParameter
 import numpy as np
 
 
-def setup_frq_sweep(station, fstart, fstop, fstep, chan='S21', bw=None, navgs=None, pwr=None, electrical_delay=None):
+def setup_frq_sweep(
+    station,
+    fstart,
+    fstop,
+    fstep,
+    chan="S21",
+    bw=None,
+    navgs=None,
+    pwr=None,
+    electrical_delay=None,
+):
     """Function that sets up the VNA according to the specified parameters, leaving
     other parameters intact. Frequency parameters are required, others are optional.
     Assumes that a channel with name `chan` is already created.
@@ -41,16 +51,20 @@ def setup_frq_sweep(station, fstart, fstop, fstep, chan='S21', bw=None, navgs=No
 
     vna_trace.start(int(fstart))
     vna_trace.stop(int(fstop))
-    vna_trace.npts(int((fstop-fstart)/fstep))
+    vna_trace.npts(int((fstop - fstart) / fstep))
     vna_trace.bandwidth(bw)
     vna_trace.power(pwr)
     vna_trace.avg(navgs)
     vna_trace.electrical_delay()
 
 
-@MakeMeasurementFunction([DataParameter('frequency', 'Hz', 'array', True),
-                          DataParameter('amplitude', '', 'array'),
-                          DataParameter('phase', 'rad', 'array')])
+@MakeMeasurementFunction(
+    [
+        DataParameter("frequency", "Hz", "array", True),
+        DataParameter("amplitude", "", "array"),
+        DataParameter("phase", "rad", "array"),
+    ]
+)
 def return_vna_trace(d):
     """Pysweep VNA measurement function.
 
@@ -58,9 +72,10 @@ def return_vna_trace(d):
     radians. Keeps currently set VNA parameters.
 
     """
-    station = d['STATION']
-    freqs = np.linspace(station.vna.S21.start(),
-                        station.vna.S21.stop(), station.vna.S21.npts())
+    station = d["STATION"]
+    freqs = np.linspace(
+        station.vna.S21.start(), station.vna.S21.stop(), station.vna.S21.npts()
+    )
 
     if not station.vna.rf_power():
         station.vna.rf_on()
@@ -71,31 +86,35 @@ def return_vna_trace(d):
 
 
 def transmission_vs_frequency_explicit(center, span, suffix=None):
-    @MakeMeasurementFunction([DataParameter(name='frequency' + str(suffix),
-                                            unit='Hz',
-                                            paramtype='array',
-                                            # yes independent, but pysweep will not recognize it as such
-                                            independent=2
-                                            ),
-                              DataParameter(name='amplitude' + str(suffix),
-                                            unit='',
-                                            paramtype='array',
-                                            # explicitely tell that this parameter depends on
-                                            # the corresponding frequency parameter
-                                            extra_dependencies=[
-                                                'frequency' + str(suffix)]
-                                            ),
-                              DataParameter(name='phase' + str(suffix),
-                                            unit='rad',
-                                            paramtype='array',
-                                            # explicitely tell that this parameter depends on
-                                            # the corresponding frequency parameter
-                                            extra_dependencies=[
-                                                'frequency' + str(suffix)]
-                                            )
-                              ])
+    @MakeMeasurementFunction(
+        [
+            DataParameter(
+                name="frequency" + str(suffix),
+                unit="Hz",
+                paramtype="array",
+                # yes independent, but pysweep will not recognize it as such
+                independent=2,
+            ),
+            DataParameter(
+                name="amplitude" + str(suffix),
+                unit="",
+                paramtype="array",
+                # explicitely tell that this parameter depends on
+                # the corresponding frequency parameter
+                extra_dependencies=["frequency" + str(suffix)],
+            ),
+            DataParameter(
+                name="phase" + str(suffix),
+                unit="rad",
+                paramtype="array",
+                # explicitely tell that this parameter depends on
+                # the corresponding frequency parameter
+                extra_dependencies=["frequency" + str(suffix)],
+            ),
+        ]
+    )
     def transmission_vs_frequency_measurement_function(d):
-        station = d['STATION']
+        station = d["STATION"]
         station.vna.S21.center(center)
         station.vna.S21.span(span)
         return return_vna_trace(d)
@@ -105,11 +124,12 @@ def transmission_vs_frequency_explicit(center, span, suffix=None):
 
 
 def multiple_meas_functions(freq_list, span_list):
-    fun_str = ''
+    fun_str = ""
 
     for i, c in enumerate(freq_list):
         s = span_list[i]
-        fun_str += 'cvna.transmission_vs_frequency_explicit({}, {}, suffix={})+'.format(
-            c, s, i)
+        fun_str += "cvna.transmission_vs_frequency_explicit({}, {}, suffix={})+".format(
+            c, s, i
+        )
     fun_str = fun_str[:-1]
     return fun_str
