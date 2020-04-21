@@ -133,3 +133,53 @@ def multiple_meas_functions(freq_list, span_list):
         )
     fun_str = fun_str[:-1]
     return fun_str
+
+
+def estimate_resonance_frequency(f0, fspan, fstep, res_finder, **kwargs):
+    @MakeMeasurementFunction([DataParameter(name="resonance_frequency", unit="Hz")])
+    def find_resonance_measurement_function(d):
+        station = d["STATION"]
+
+        if "f0" not in d:
+            d["f0"] = f0
+        setup_frq_sweep(
+            station=station,
+            fstart=["f0"] - fspan / 2,
+            fstop=["f0"] + fspan / 2,
+            fstep=fstep,
+            **kwargs
+        )
+        cal = return_vna_trace(d)
+        m0 = res_finder(cal[0], 20 * np.log10(cal[1]))
+        if m0 == None:
+            raise Exception("Failed to find a resonance.")  # needs work
+        d["f0"] = m0
+        return [m0]
+
+    return find_resonance_measurement_function
+
+
+def measure_S21_adaptive(f0, fspan, fstep, **kwargs):
+    @MakeMeasurementFunction(
+        [
+            DataParameter("frequency", "Hz", "array", True),
+            DataParameter("amplitude", "", "array"),
+            DataParameter("phase", "rad", "array"),
+        ]
+    )
+    def adaptive_measurement_function(d):
+        station = d["STATION"]
+
+        if "f0" not in d:
+            d["f0"] = f0
+        setup_frq_sweep(
+            station=station,
+            fstart=["f0"] - fspan / 2,
+            fstop=["f0"] + fspan / 2,
+            fstep=fstep,
+            **kwargs
+        )
+        data = return_vna_trace(d)
+        return [data[0], data[1], data[2]]
+
+    return adaptive_measurement_function
