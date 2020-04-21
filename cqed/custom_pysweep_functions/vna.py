@@ -1,4 +1,4 @@
-# Authors: Lukas Splitthoff, Lukas Gruenhaupt @TUDelft
+# Authors: Lukas Splitthoff, Lukas Gruenhaupt, Arno Bargerbos @TUDelft
 # 04-DEC-2019
 
 ''' A set of functions to conveniently use for VNA measurements with pysweep.'''

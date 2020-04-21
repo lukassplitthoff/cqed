@@ -98,21 +98,3 @@ class CustomMagnet(Instrument):
         coords = ['x', 'y', 'z']
         meas_field = self._get_measured()
         [getattr(self,f'{i}_measured').get() for i in coords]
-
-    def magnet_components_sph(self):
-        """
-        Return the x, y, z component of the magnet, convert to spherical using the 
-        ISO 80000-2:2009 physics convention for the (r, theta, phi) <--> (x, y, z) definition 
-        and return as list. 
-        """
-        x = self.x_measured()+1e-9 #avoiding dividing by true zero 
-        y = self.y_measured()+1e-9
-        z = self.z_measured()+1e-9
-
-        r_meas = np.sqrt(x**2+y**2+z**2)
-        phi_meas = np.arctan2(y,x)/np.pi*180
-        if phi_meas < 0:
-            phi_meas += 360
-        theta_meas = np.arccos(z/r_meas)/np.pi*180
-
-        return [r_meas, theta_meas, phi_meas] 
