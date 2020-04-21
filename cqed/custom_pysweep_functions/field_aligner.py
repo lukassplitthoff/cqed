@@ -16,13 +16,12 @@ from warnings import showwarning
 
 
 class FieldAligner(object):
-    """
-    Represents the optimization problem of aligning the magnetic field
-    Args:
-        instrument: A QCoDeS (meta)instrument that controls a magnetic
-            field. Typically the Oxford mercuryIPS or a custom combination of sources.
-        objective: A gettable QCoDeS parameter that returns the value to be optimized.
-        Typically a resonator frequency.
+    """Represents the optimization problem of aligning the magnetic field Args:
+    instrument: A QCoDeS (meta)instrument that controls a magnetic field.
+
+    Typically the Oxford mercuryIPS or a custom combination of sources.
+    objective: A gettable QCoDeS parameter that returns the value to be
+    optimized. Typically a resonator frequency.
     """
 
     def __init__(self, instrument, objective):
@@ -41,30 +40,35 @@ class FieldAligner(object):
                    plot=False,
                    verbose=False
                    ):
-        """ At fixed magnitude of y and z field, maximizes the objective by
-        wiggling the x-axis of the magnetic field up and down in decreasing steps
-        until the objective is maximized. The wiggling method is chosen
-        to deal with hysteresis, a common pitfall encountered when using an exhaustive search.
+        """At fixed magnitude of y and z field, maximizes the objective by wiggling
+        the x-axis of the magnetic field up and down in decreasing to deal with
+        hysteresis, a common pitfall encountered when using an exhaustive search.
 
         Args:
-            initial_step (T): The size of the first step in x-field that will be made.
-            final_step (T): The step size below which the optimization procedure will halt.
-            resolution (T): The resolution of the magnet source used. Steps taken will be rounded to an integer multiple of this number.
-            initial_direction: 1 for starting the search in the positive x direction, -1 for negative x direction.
-            max_amplitude (T): The largest (absolute) value of x-field that can be set. Outside of this range the procedure will abort.
-            waiting_time (s): Amount of time waited after setting the field before continuing.
-            return_extra (boolean): If `True`, this method will return additional
-                data as a dictionary.
-            plot (boolean): If `True`, produces a plot of the path that this
-                method took to find the optimal objective value.
-            verbose (boolean): toggles print statements during optimization
+        initial_step (T): The size of the first step in
+        x-field that will be made.
+        final_step (T): The step size
+        below which the optimization procedure will halt.
+        resolution (T): The resolution of the magnet source used.
+        Steps taken will be rounded to an integer multiple of this number.
+        initial_direction: 1 for starting the search in the positive x
+        direction, -1 for negative x direction.
+        max_amplitude (T): The largest (absolute) value of x-field that can be set.
+        Outside of this range the procedure will abort.
+        waiting_time (s): Amount of time waited after setting the field before continuing.
+        return_extra (boolean): If `True`, this method will return additional
+        data as a dictionary.
+        plot (boolean): If `True`, produces a plot of the path that this
+        method took to find the optimal objective value.
+        verbose (boolean): toggles print statements during optimization
 
         Returns:
-            The optimal field value found.
-            If `return_extra=True`, this method returns a tuple of the
-            optimal field and a dictionary containing diagnostic data.
-        """
+        The optimal field value found.
+        If `return_extra=True`, this method returns a tuple of the optimal field
+        and a dictionary
+        containing diagnostic data.
 
+        """
         objectives_meas = []
         locations = []
 
@@ -177,35 +181,41 @@ class FieldAligner(object):
                             verbose=True,
                             **kwargs
                             ):
-        """Ramps the magnetic field over the magnitude values provided,
-        optimizing the objective by adjusting the x-field whenever required as given by `optimize_strategy`.
+        """Ramps the magnetic field over the magnitude values provided, optimizing
+        the objective by adjusting the x-field whenever required as given by
+        `optimize_strategy`. Use the **kwargs to set up optimize_x!
 
-        Use the **kwargs to set up optimize_x!
+        Args: rs (T): Array of magnitude values along which the field is
+        ramped. Smaller steps implies less risk of losing resonances but takes
+        more time.
+        initial_theta (deg): intial angle theta used to set the
+        direction of the field.
+        initial_phi (deg): intial angle phi used to set
+        the direction of the field.
+        optimize_first (boolean): Whether to
+        optimize the field before starting the ramp procedure. Note that this
+        might overwrite the input values of theta and phi!
+        optimize_strategy (str): three options are implemented:
+        `objective_decrease`, for which one optimizes the alignment if the objective
+        has decreased by more than `reoptimization_threshold` since the last
+        call to `optimize_x`. The next option is `optimize_at_fields`,
+        for which the alignment is optimized only at the field given by `optimize_at`.
+        And finally, if `None` is chosen, the alignment is never optimized.
+        optimize_at (T): Array of values at which the alignment will be optimized if
+        `optimize_strategy` = `optimize_at`
+        reoptimization_threshold (GHz): Value against which the change in objective is
+        compared in order to establish if the field has to be aligned if
+        `optimize_strategy` = `objective_decrease`.
+        waiting_time (s): Amount of time waited after
+        sweeping the field before continuing.
+        return_extra (boolean): If `True`, this method will return additional
+        data as a dictionary.
+        verbose (boolean): toggles print statements during optimization and
+        sweeping.
+        Returns:     The optimal field value found.     If
+        `return_extra=True`, this method returns a tuple of the
+        optimal field and a dictionary containing diagnostic data.
 
-        Args:
-            rs (T): Array of magnitude values along which the field is ramped.
-            Smaller steps implies less risk of losing resonances but takes more time.
-            initial_theta (deg): intial angle theta used to set the direction of the field.
-            initial_phi (deg): intial angle phi used to set the direction of the field.
-            optimize_first (boolean): Whether to optimize the field before starting the ramp procedure.
-            Note that this might overwrite the input values of theta and phi!
-            optimize_strategy (str): three options are implemented: `objective_decrease`, for which one
-            optimizes the alignment if the objective has decreased by more than `reoptimization_threshold`
-            since the last call to `optimize_x`. The next option is `optimize_at_fields`, for which the alignment
-            is optimized only at the field given by `optimize_at`. And finally, if `None` is chosen, the alignment
-            is never optimized.
-            optimize_at (T): Array of values at which the alignment will be optimized if `optimize_strategy` = `optimize_at`
-            reoptimization_threshold (GHz): Value against which the change in objective is compared in order
-            to establish if the field has to be aligned if `optimize_strategy` = `objective_decrease`.
-            waiting_time (s): Amount of time waited after sweeping the field before continuing.
-            return_extra (boolean): If `True`, this method will return additional
-                data as a dictionary.
-            verbose (boolean): toggles print statements during optimization and sweeping
-
-        Returns:
-            The optimal field value found.
-            If `return_extra=True`, this method returns a tuple of the
-            optimal field and a dictionary containing diagnostic data.
         """
 
         if max_field_strength > 1.5:
@@ -329,10 +339,11 @@ class FieldAligner(object):
                 return objective_history[-1]
 
     def magnet_components_sph(self):
-        """
-        Return the x, y, z component of the magnet, convert to spherical using the
-        ISO 80000-2:2009 physics convention for the (r, theta, phi) <--> (x, y, z) definition
-        and return as list.
+        """Return the x, y, z component of the magnet, convert to spherical using the
+        ISO 80000-2:2009 physics convention for the (r, theta, phi)
+
+        <--> (x, y, z) definition and return as list.
+
         """
         x = self.magnet.x_measured() + \
             1e-9  # avoiding dividing by true zero
