@@ -71,12 +71,12 @@ class CustomMagnet(Instrument):
         order = np.argsort(np.abs(np.array(targ_vals) - np.array(meas_vals)))
 
         for slave in np.array(['x', 'y', 'z'])[order]:
-            if slave == 'y' or slave == 'z'
-            eval(self.mercury.slave.ramp_to_target())
-            # now just wait for the ramp to finish
-            # (unless we are testing)
-            while slave.ramp_status() == 'TO SET':
-                    sleep(0.1)
+            if slave == 'y' or slave == 'z':
+                eval(self.mercury.slave.ramp_to_target())
+                # now just wait for the ramp to finish
+                # (unless we are testing)
+                while slave.ramp_status() == 'TO SET':
+                        sleep(0.1)
             elif slave == 'x':
                 eval(self.x_source.slave.ramp_to_target())
 
@@ -94,7 +94,6 @@ class CustomMagnet(Instrument):
             field_components.append(eval('self.{0:}_target()'.format(axis)))
         return field_components
 
-    def _update_field(self)
-    coords = ['x', 'y', 'z']
-    meas_field = self._get_measured()
-    [getattr(self, f'{i}_measured').get() for i in coords]
+    def _update_field(self):
+        coords = ['x', 'y', 'z']
+        [getattr(self, f'{i}_measured').get() for i in coords]
