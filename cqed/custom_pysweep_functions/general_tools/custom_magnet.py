@@ -3,13 +3,66 @@ from qcodes.instrument.parameter import Parameter
 import numpy as np
 from time import sleep
 
-class CustomKeysightE(Instrument):
-    """
-    Meta instrument that wraps KeysightE to allow setting (x) fields rather than currents with the
-    Keysight E36313A.
 
-    x-field is hardcoded to allow for easy integrating into CustomMagnet below, 
+class CustomYokogawa(Instrument):
+    """Meta instrument that wraps the Yokogawa GS210 to allow setting (x) fields
+    rather than currents.
+
+    x-field is hardcoded to allow for easy integrating into CustomMagnet below,
     but we could/should generalize this.
+
+    """
+
+    def __init__(self, name, yokogawa, coil_constant, step=1e-6, delay=10e-3):
+        super().__init__(name)
+
+        self.source = yokogawa
+        self.coil_constant = coil_constant
+        self._field_target = self.source.x_measured()
+        self.step = step
+        self.delay = delay
+
+        self.add_parameter(
+            "x_measured", unit="T", label="x measured field", get_cmd=self._get_field,
+        )
+
+        self.add_parameter(
+            "x_target",
+            unit="T",
+            label="x target field",
+            get_cmd=self._get_target,
+            set_cmd=self._set_target,
+        )
+
+    def _get_field(self):
+        if self.source.output() == "off":
+            B_value = 0
+        else:
+            I_value = self.source.current()
+            B_value = I_value / self.coil_constant
+        return B_value
+
+    def _get_target(self):
+        return self._field_target
+
+    def _set_target(self, val):
+        self._field_target = val * self.coil_constant
+
+    def ramp_to_target(self):
+        self.source.source_mode("CURR")
+        self.source.output("on")
+        self.source.ramp_current(
+            ramp_to=self.x_target(), step=self.step, delay=self.delay
+        )
+
+
+class CustomKeysightE(Instrument):
+    """Meta instrument that wraps the Keysight E36313A to allow setting (x) fields
+    rather than currents.
+
+    x-field is hardcoded to allow for easy integrating into CustomMagnet below,
+    but we could/should generalize this.
+
     """
 
     def __init__(self, name, keysightE, coil_constant):
@@ -20,37 +73,35 @@ class CustomKeysightE(Instrument):
         self._field_target = self.source.x_measured()
 
         self.add_parameter(
-            "x_measured",
-            unit="T",
-            label="x measured field",
-            get_cmd=self.get_field,
+            "x_measured", unit="T", label="x measured field", get_cmd=self._get_field,
         )
 
         self.add_parameter(
             "x_target",
             unit="T",
             label="x target field",
-            get_cmd=self.get_target,
-            set_cmd=self.set_target,
+            get_cmd=self._get_target,
+            set_cmd=self._set_target,
         )
 
-    def get_field(self):
-        if Keysight.ch1.enable() == "off":
+    def _get_field(self):
+        if self.source.ch1.enable() == "off":
             B_value = 0
         else:
             I_value = self.source.ch1.current()
             B_value = I_value / self.coil_constant
         return B_value
 
-    def get_target(self):
+    def _get_target(self):
         return self._field_target
 
-    def set_target(self, val):
-        self._field_target = val
+    def _set_target(self, val):
+        self._field_target = val * self.coil_constant
 
     def ramp_to_target(self):
         self.source.ch1.enable("on")
         self.source.ch1.source_current(self.x_target())
+
 
 class CustomMagnet(Instrument):
     """
