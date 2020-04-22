@@ -1,6 +1,6 @@
 # Authors: Lukas Splitthoff, Lukas Gruenhaupt, Arno Bargerbos @TUDelft
 # 04-DEC-2019
-
+# some strategies I had in mind for the resonance finder: increase span, increase navgs, increase npts, adjust filtering parameters, take previous value
 """
 A set of functions to conveniently use for VNA measurements with pysweep.
 """
@@ -66,10 +66,11 @@ def setup_frq_sweep(
     ]
 )
 def return_vna_trace(d):
-    """Pysweep VNA measurement function.
+    """Pysweep VNA measurement function that returns an S21 trace given the currently
+    set VNA parameters.
 
-    Returns VNA frequency axis in Hz, linear amplitude in ? and phase in
-    radians. Keeps currently set VNA parameters.
+    Returns:
+        VNA frequency axis in Hz, linear magnitude? in V?, phase in radians.
 
     """
     station = d["STATION"]
@@ -85,7 +86,22 @@ def return_vna_trace(d):
     return [freqs, vna_data[0], vna_data[1]]
 
 
+
 def transmission_vs_frequency_explicit(center, span, suffix=None):
+    """Pysweep VNA measurement function that returns an S21 trace given the currently
+    set VNA parameters for a given center frequency a given span and a given suffix.
+    This can be useful when one wants to measure the response of several resonances
+    versus a single parameter.
+
+    Args:
+        center (Hz): center frequency of VNA trace
+        suffix (int): index of measurement function
+
+
+    Returns:
+    Pysweep measurement function
+
+    """
     @MakeMeasurementFunction(
         [
             DataParameter(
@@ -123,9 +139,22 @@ def transmission_vs_frequency_explicit(center, span, suffix=None):
     return transmission_vs_frequency_measurement_function
 
 
-def multiple_meas_functions(freq_list, span_list):
-    fun_str = ""
 
+def multiple_meas_functions(freq_list, span_list):
+    """Combines several measurement functions into one, allowing for measuring N
+    resonances using a single measurement function.
+
+    Should be renamed or made more general.
+    Args:
+        freq_list (Hz): list containing center frequencies
+        span_list (Hz): list containing spans
+
+
+    Returns:
+    Pysweep measurement function
+
+    """
+    fun_str = ""
     for i, c in enumerate(freq_list):
         s = span_list[i]
         fun_str += "cvna.transmission_vs_frequency_explicit({}, {}, suffix={})+".format(
@@ -135,11 +164,29 @@ def multiple_meas_functions(freq_list, span_list):
     return fun_str
 
 
-def estimate_resonance_frequency(f0, fspan, fstep, res_finder, **kwargs):
-    @MakeMeasurementFunction([DataParameter(name="resonance_frequency", unit="Hz")])
-    def find_resonance_measurement_function(d):
-        station = d["STATION"]
 
+
+def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
+    """Pysweep VNA measurement function that measures an estimated resonance
+    frequency.
+
+    The idea is to use this over large ranges to figure out the approximate
+    resonance frequency and then set up a finer scan. Needs testing.
+    f0 (Hz): Frequency around which to measure. Ignored if there is already an f0 in d['f0'].
+    fspan (Hz): Span around f0 to measure.
+    fstep (Hz): Frequency step size.
+    res finder: Function that finds a resonance from VNA output. WIP.
+    kwargs: see `setup_frq_sweep`.
+
+    Returns:
+    Pysweep measurement function
+
+    Returns:
+    Pysweep measurement function
+
+    """
+
+    @MakeMeasurementFunction([DataParameter(name="resonance_frequency", unit="Hz")])
         if "f0" not in d:
             d["f0"] = f0
         setup_frq_sweep(
@@ -152,14 +199,32 @@ def estimate_resonance_frequency(f0, fspan, fstep, res_finder, **kwargs):
         cal = return_vna_trace(d)
         m0 = res_finder(cal[0], 20 * np.log10(cal[1]))
         if m0 == None:
-            raise Exception("Failed to find a resonance.")  # needs work
+            raise Exception(
+                "Failed to find a resonance."
+            )  # needs work, can implement alternative strategies
         d["f0"] = m0
         return [m0]
 
-    return find_resonance_measurement_function
-
+    return resonance_estimate_measurement_function
 
 def measure_S21_adaptive(f0, fspan, fstep, **kwargs):
+    """Pysweep VNA measurement function that measures S21 in a window around a
+    frequency f0.
+
+    f0 can be updated through other measurement or sweep functions (such as `measure_resonance_estimate`)
+    This is helpful when measuring S21 versus parameters that change the resonance frequency
+
+    Args:
+    f0 (Hz): Frequency around which to measure. Ignored if there is already an f0 in d['f0'].
+    fspan (Hz): Span around f0 to measure.
+    fstep (Hz): Frequency step size.
+    kwargs: see `setup_frq_sweep`.
+
+    Returns:
+    Pysweep measurement function
+
+    """
+
     @MakeMeasurementFunction(
         [
             DataParameter("frequency", "Hz", "array", True),

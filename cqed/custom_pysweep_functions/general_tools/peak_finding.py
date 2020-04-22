@@ -19,11 +19,8 @@ def find_minimum_absolute(fs, ys):
 def find_minimum_filtered(fs, ys, min_linewidth=1e6, min_depth=4):
 
     """ Taking the minimum of a trace to find a resonance is prone to noise. 
-    Here we smooth the data based on the expected linewidth of the dip, 
+    Here we smooth the data with a window based on the expected linewidth of the dip, 
     and look for dips that are sufficiently deep based on the (topographic) prominence.
-    
-    The idea is to use this over large ranges to figure out the approximate resonance 
-    frequency and then set up a finer scan.
     
     Needs testing. 
     """
