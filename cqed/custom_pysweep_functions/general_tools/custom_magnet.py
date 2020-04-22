@@ -1,9 +1,56 @@
 from qcodes.instrument.base import Instrument
+from qcodes.instrument.parameter import Parameter
 import numpy as np
 from time import sleep
 
-# needs testing!
+class CustomKeysightE(Instrument):
+    """
+    Meta instrument that wraps KeysightE to allow setting (x) fields rather than currents with the
+    Keysight E36313A.
 
+    x-field is hardcoded to allow for easy integrating into CustomMagnet below, 
+    but we could/should generalize this.
+    """
+
+    def __init__(self, name, keysightE, coil_constant):
+        super().__init__(name)
+
+        self.source = keysightE
+        self.coil_constant = coil_constant
+        self._field_target = self.source.x_measured()
+
+        self.add_parameter(
+            "x_measured",
+            unit="T",
+            label="x measured field",
+            get_cmd=self.get_field,
+        )
+
+        self.add_parameter(
+            "x_target",
+            unit="T",
+            label="x target field",
+            get_cmd=self.get_target,
+            set_cmd=self.set_target,
+        )
+
+    def get_field(self):
+        if Keysight.ch1.enable() == "off":
+            B_value = 0
+        else:
+            I_value = self.source.ch1.current()
+            B_value = I_value / self.coil_constant
+        return B_value
+
+    def get_target(self):
+        return self._field_target
+
+    def set_target(self, val):
+        self._field_target = val
+
+    def ramp_to_target(self):
+        self.source.ch1.enable("on")
+        self.source.ch1.source_current(self.x_target())
 
 class CustomMagnet(Instrument):
     """
@@ -21,45 +68,45 @@ class CustomMagnet(Instrument):
             "x_measured",
             unit="T",
             label="x measured field",
-            get_cmd=self.x_source.x_measured(),
+            get_cmd=self.x_source.x_measured,
         )
 
         self.add_parameter(
             "x_target",
             unit="T",
             label="x target field",
-            get_cmd=self.x_source.x.target(),
-            set_cmd=self.x_source.x_target(),
+            get_cmd=self.x_source.x_target,
+            set_cmd=self.x_source.x_target,
         )
 
         self.add_parameter(
             "y_measured",
             unit="T",
             label="y measured field",
-            get_cmd=self.mercury.x_measured(),
+            get_cmd=self.mercury.y_measured,
         )
 
         self.add_parameter(
             "y_target",
             unit="T",
             label="y target field",
-            get_cmd=self.mercury.y.target(),
-            set_cmd=self.mercury.y_target(),
+            get_cmd=self.mercury.y_target,
+            set_cmd=self.mercury.y_target,
         )
 
         self.add_parameter(
             "z_measured",
             unit="T",
             label="z measured field",
-            get_cmd=self.mercury.z_measured(),
+            get_cmd=self.mercury.z_measured,
         )
 
         self.add_parameter(
             "z_target",
             unit="T",
             label="z target field",
-            get_cmd=self.mercury.z.target(),
-            set_cmd=self.mercury.z_target(),
+            get_cmd=self.mercury.z_target,
+            set_cmd=self.mercury.z_target,
         )
 
     def ramp(self):
