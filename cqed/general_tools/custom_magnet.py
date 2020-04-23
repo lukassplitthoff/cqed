@@ -4,7 +4,7 @@ import numpy as np
 from time import sleep
 
 
-class CustomYokogawa(Instrument):
+class CustomGS210(Instrument):
     """Meta instrument that wraps the Yokogawa GS210 to allow setting (x) fields
     rather than currents.
 
@@ -13,12 +13,11 @@ class CustomYokogawa(Instrument):
 
     """
 
-    def __init__(self, name, yokogawa, coil_constant, step=1e-6, delay=10e-3):
+    def __init__(self, name, instrument, coil_constant, step=1e-6, delay=10e-3):
         super().__init__(name)
 
-        self.source = yokogawa
-        self.coil_constant = coil_constant
-        self._field_target = self.source.x_measured()
+        self.source = instrument
+        self.coil_constant = coil_constant  # A/T
         self.step = step
         self.delay = delay
 
@@ -33,6 +32,8 @@ class CustomYokogawa(Instrument):
             get_cmd=self._get_target,
             set_cmd=self._set_target,
         )
+
+        self._field_target = self.x_measured()
 
     def _get_field(self):
         if self.source.output() == "off":
@@ -56,21 +57,21 @@ class CustomYokogawa(Instrument):
         )
 
 
-class CustomKeysightE(Instrument):
+class CustomE36313A(Instrument):
     """Meta instrument that wraps the Keysight E36313A to allow setting (x) fields
     rather than currents.
 
     x-field is hardcoded to allow for easy integrating into CustomMagnet below,
     but we could/should generalize this.
 
+    Need to add inputs
     """
 
-    def __init__(self, name, keysightE, coil_constant):
+    def __init__(self, name, instrument, coil_constant):
         super().__init__(name)
 
-        self.source = keysightE
-        self.coil_constant = coil_constant
-        self._field_target = self.source.x_measured()
+        self.source = instrument
+        self.coil_constant = coil_constant  # A/T
 
         self.add_parameter(
             "x_measured", unit="T", label="x measured field", get_cmd=self._get_field,
@@ -83,6 +84,8 @@ class CustomKeysightE(Instrument):
             get_cmd=self._get_target,
             set_cmd=self._set_target,
         )
+
+        self._field_target = self.x_measured()
 
     def _get_field(self):
         if self.source.ch1.enable() == "off":

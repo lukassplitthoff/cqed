@@ -86,7 +86,6 @@ def return_vna_trace(d):
     return [freqs, vna_data[0], vna_data[1]]
 
 
-
 def transmission_vs_frequency_explicit(center, span, suffix=None):
     """Pysweep VNA measurement function that returns an S21 trace given the currently
     set VNA parameters for a given center frequency a given span and a given suffix.
@@ -102,6 +101,7 @@ def transmission_vs_frequency_explicit(center, span, suffix=None):
     Pysweep measurement function
 
     """
+
     @MakeMeasurementFunction(
         [
             DataParameter(
@@ -139,7 +139,6 @@ def transmission_vs_frequency_explicit(center, span, suffix=None):
     return transmission_vs_frequency_measurement_function
 
 
-
 def multiple_meas_functions(freq_list, span_list):
     """Combines several measurement functions into one, allowing for measuring N
     resonances using a single measurement function.
@@ -165,7 +164,6 @@ def multiple_meas_functions(freq_list, span_list):
 
 
 
-
 def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
     """Pysweep VNA measurement function that measures an estimated resonance
     frequency.
@@ -187,8 +185,10 @@ def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
     """
 
     @MakeMeasurementFunction([DataParameter(name="resonance_frequency", unit="Hz")])
+    def resonance_estimate_measurement_function(d):
         if "f0" not in d:
             d["f0"] = f0
+        station = d["STATION"]
         setup_frq_sweep(
             station=station,
             fstart=["f0"] - fspan / 2,
@@ -206,6 +206,7 @@ def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
         return [m0]
 
     return resonance_estimate_measurement_function
+
 
 def measure_S21_adaptive(f0, fspan, fstep, **kwargs):
     """Pysweep VNA measurement function that measures S21 in a window around a
