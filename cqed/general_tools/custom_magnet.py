@@ -47,13 +47,13 @@ class CustomGS210(Instrument):
         return self._field_target
 
     def _set_target(self, val):
-        self._field_target = val * self.coil_constant
+        self._field_target = val
 
     def ramp_to_target(self):
         self.source.source_mode("CURR")
         self.source.output("on")
         self.source.ramp_current(
-            ramp_to=self.x_target(), step=self.step, delay=self.delay
+            ramp_to=self.x_target()*self.coil_constant, step=self.step, delay=self.delay
         )
 
 
@@ -99,11 +99,11 @@ class CustomE36313A(Instrument):
         return self._field_target
 
     def _set_target(self, val):
-        self._field_target = val * self.coil_constant
+        self._field_target = val
 
     def ramp_to_target(self):
         self.source.ch1.enable("on")
-        self.source.ch1.source_current(self.x_target())
+        self.source.ch1.source_current(self.x_target()*self.coil_constant)
 
 
 class CustomMagnet(Instrument):
@@ -163,7 +163,7 @@ class CustomMagnet(Instrument):
             set_cmd=self.mercury.z_target,
         )
 
-    def ramp(self):
+    def ramp(self, mode='safe'):
         """Ramp the fields to their present target value. Mode is always 'safe' for
         now. Did not implement the others.
 
@@ -172,20 +172,18 @@ class CustomMagnet(Instrument):
         this region is convex).
 
         """
-
         meas_vals = self._get_measured()
         targ_vals = self._get_targets()
         order = np.argsort(np.abs(np.array(targ_vals) - np.array(meas_vals)))
 
-        for slave in np.array(["x", "y", "z"])[order]:
-            if slave == "y" or slave == "z":
-                eval(self.mercury.slave.ramp_to_target())
-                # now just wait for the ramp to finish
-                # (unless we are testing)
-                while slave.ramp_status() == "TO SET":
+        for slave in np.array(["X", "Y", "Z"])[order]:
+            if slave == "Y" or slave == "Z":
+                eval(f"self.mercury.GRP{slave}.ramp_to_target()")
+                while eval(f"self.mercury.GRP{slave}.ramp_status()") == "TO SET":
                     sleep(0.1)
-            elif slave == "x":
-                eval(self.x_source.slave.ramp_to_target())
+            elif slave == "X":
+                eval(f"self.x_source.ramp_to_target()")
+                #need to figure out of the other sources also have a ramp status, and if so implement that in their custom drivers!
 
         self._update_field()
 
