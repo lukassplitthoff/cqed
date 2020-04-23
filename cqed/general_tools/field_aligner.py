@@ -94,9 +94,9 @@ class FieldAligner(object):
                     + "{0:.4f} mT".format((current_pos + direction * wiggle_step) * 1e3)
                 )
 
-            # self.magnet.x_target(
-            #     current_pos + direction * wiggle_step)
-            # self.magnet.ramp(mode='safe')
+            self.magnet.x_target(
+                current_pos + direction * wiggle_step)
+            self.magnet.ramp(mode='safe')
             sleep(waiting_time)
 
             new_pos = self.magnet.x_measured()
@@ -250,10 +250,10 @@ class FieldAligner(object):
                 print(f"Sweeping y-axis field from {current_y} to {new_y}")
                 print(f"Sweeping z-axis field from {current_z} to {new_z}")
 
-            # self.magnet.x_target(new_x)
-            # self.magnet.y_target(new_y)
-            # self.magnet.z_target(new_z)
-            # self.magnet.ramp(mode='safe')
+            self.magnet.x_target(new_x)
+            self.magnet.y_target(new_y)
+            self.magnet.z_target(new_z)
+            self.magnet.ramp(mode='safe')
             sleep(waiting_time)
             if verbose:
                 print(f"Sweep finished.")

@@ -191,8 +191,8 @@ def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
         station = d["STATION"]
         setup_frq_sweep(
             station=station,
-            fstart=["f0"] - fspan / 2,
-            fstop=["f0"] + fspan / 2,
+            fstart=d["f0"] - fspan / 2,
+            fstop=d["f0"] + fspan / 2,
             fstep=fstep,
             **kwargs
         )
@@ -240,8 +240,8 @@ def measure_S21_adaptive(f0, fspan, fstep, **kwargs):
             d["f0"] = f0
         setup_frq_sweep(
             station=station,
-            fstart=["f0"] - fspan / 2,
-            fstop=["f0"] + fspan / 2,
+            fstart=d["f0"] - fspan / 2,
+            fstop=d["f0"] + fspan / 2,
             fstep=fstep,
             **kwargs
         )
