@@ -50,7 +50,8 @@ class CustomGS210(Instrument):
         self._field_target = val
 
     def ramp_to_target(self):
-        self.source.source_mode("CURR")
+        if self.source.output() != "on":
+            self.source.source_mode("CURR")
         self.source.output("on")
         self.source.ramp_current(
             ramp_to=self.x_target()*self.coil_constant, step=self.step, delay=self.delay
@@ -186,6 +187,30 @@ class CustomMagnet(Instrument):
                 #need to figure out of the other sources also have a ramp status, and if so implement that in their custom drivers!
 
         self._update_field()
+
+
+    def x_ramp(self):
+        #need to look up syntax in oxford IPS
+        meas_vals = self._get_measured()
+        targ_vals = self._get_targets()
+        self.x_source.ramp_to_target()
+        self._update_field()
+
+    def y_ramp(self):
+        meas_vals = self._get_measured()
+        targ_vals = self._get_targets()
+        self.mercury.GRPY.ramp_to_target()
+        while self.mercury.GRPY.ramp_status() == "TO SET":
+            sleep(0.1)
+        self._update_field()
+
+    def z_ramp(self):
+        meas_vals = self._get_measured()
+        targ_vals = self._get_targets()
+        self.mercury.GRPZ.ramp_to_target()
+        while self.mercury.GRPZ.ramp_status() == "TO SET":
+            sleep(0.1)
+        self._update_field()   
 
     def _get_measured(self):
         field_components = []

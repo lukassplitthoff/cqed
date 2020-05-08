@@ -2,7 +2,7 @@ instruments:
 
   vna:
     type: qcodes.instrument_drivers.rohde_schwarz.ZNB.ZNB
-    address: TCPIP::169.254.82.128::inst0::INSTR #TCPIP::169.254.164.139::inst0::INSTR (VNA 1)
+    address: TCPIP::169.254.164.139::inst0::INSTR #TCPIP::169.254.164.139::inst0::INSTR (VNA 1)
     enable_forced_reconnect: true
     init:
       init_s_params: false 
