@@ -40,6 +40,11 @@ def setup_frq_sweep(
     """
 
     vna_trace = getattr(station.vna.channels, chan)
+    try: 
+        vna_trace.setup_lin_sweep() #gets you out of CW in Jaap's new ZNB class
+    except:
+        pass
+        
     if navgs is None:
         navgs = vna_trace.avg()
     if bw is None:
@@ -249,3 +254,92 @@ def measure_S21_adaptive(f0, fspan, fstep, **kwargs):
         return [data[0], data[1], data[2]]
 
     return adaptive_measurement_function
+
+def setup_frq_sweep_CW(
+    station,
+    cw_frequency,
+    npts,
+    chan="S21",
+    bw=None,
+    pwr=None,
+    electrical_delay=None,
+):
+    """Function that sets up the VNA according to the specified parameters, leaving
+    other parameters intact. Frequency parameters are required, others are optional.
+    Assumes that a channel with name `chan` is already created. To use in CW mode.
+
+    Args:
+        station: QCoDeS station that contains a R&S ZNB VNA instrument
+        fstart (Hz): starting frequency of VNA sweep
+        fstop (Hz): final frequency of VNA sweep
+        fstep (Hz): step size of VNA sweep
+        chan: name of VNA channel to be used
+        bw (Hz): VNA bandwidth
+        navgs: number of averages per measurement
+        navgs: number of averages per measurement
+        pwr (dBm): VNA power
+        electrical_delay (s): electrical delay used by the VNA
+
+    """
+
+    vna_trace = getattr(station.vna.channels, chan)
+    try: 
+        vna_trace.setup_cw_sweep() #gets you into CW in Jaap's new ZNB class
+    except:
+        print("CW Mode does not exist in this qcodes version")
+
+    if bw is None:
+        bw = vna_trace.bandwidth()
+    if pwr is None:
+        pwr = vna_trace.power()
+    if electrical_delay is None:
+        electrical_delay = vna_trace.electrical_delay()
+
+    vna_trace.cw_frequency(int(cw_frequency))
+    vna_trace.npts(npts)
+    vna_trace.bandwidth(bw)
+    vna_trace.power(pwr)
+    vna_trace.electrical_delay()
+
+@MakeMeasurementFunction([DataParameter(name='amplitude', unit=''), 
+                          DataParameter(name='phase', unit='rad')])
+def measure_point_CW(d):
+    station = d["STATION"]
+    return list(station.vna.S21.point_fixed_frequency_mag_phase())
+
+def measure_CW_optimized(cw_frequency, **kwargs):
+    """Pysweep VNA measurement function that measures in CW at frequency
+    cw_frequency.
+
+    cw_frequency can be updated through other measurement or sweep functions (such as `measure_resonance_estimate`)
+    This is helpful when measuring versus parameters that change the resonance frequency
+
+    Args:
+    cw_frequency (Hz): Frequency at which to measure. Ignored if there is already an f0 in d['f0'].
+    kwargs: see `setup_frq_sweep_CW`.
+
+    Returns:
+    Pysweep measurement function
+
+    """
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("amplitude", "", "array"),
+            DataParameter("phase", "rad", "array"),
+        ]
+    )
+    def cw_measurement_function(d):
+        station = d["STATION"]
+
+        if "f0" not in d:
+            d["f0"] = cw_frequency
+        setup_frq_sweep_CW(
+            station=station,
+            cw_frequency=d["f0"],
+            **kwargs
+        )
+        data = measure_point_CW(d)
+        return [data[0], data[1]]
+
+    return cw_measurement_function
