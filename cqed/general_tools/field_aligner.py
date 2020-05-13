@@ -29,8 +29,9 @@ class FieldAligner(object):
         self.magnet = instrument
         self.objective = objective
 
-    def optimize_x(
+    def optimize_axis(
         self,
+        axis,
         initial_step=200e-6,
         final_step=50e-6,
         resolution=20e-6,
@@ -41,13 +42,14 @@ class FieldAligner(object):
         plot=False,
         verbose=False,
     ):
-        """At fixed magnitude of y and z field, maximizes the objective by wiggling
-        the x-axis of the magnetic field up and down in decreasing to deal with
+        """At fixed magnitude of the other two axes, maximizes the objective by wiggling
+        a single axis of the magnetic field up and down in decreasing to deal with
         hysteresis, a common pitfall encountered when using an exhaustive search.
 
         Args:
+        axis (str): Axis you want to wiggle.
         initial_step (T): The size of the first step in
-        x-field that will be made.
+        field that will be made.
         final_step (T): The step size
         below which the optimization procedure will halt.
         resolution (T): The resolution of the magnet source used.
@@ -77,7 +79,7 @@ class FieldAligner(object):
         direction = initial_direction
         wiggle_step = resolution * round(float(initial_step) / resolution)
         current_objective = self.objective()
-        current_pos = self.magnet.x_measured()
+        current_pos = eval(f'self.magnet.{axis}_measured()')
 
         objectives_meas.append(current_objective)
         locations.append(current_pos)
@@ -85,7 +87,7 @@ class FieldAligner(object):
         while wiggle_step >= final_step:
 
             if abs(current_pos + direction * wiggle_step) > max_amplitude:
-                raise Exception("X-axis magnitude limit reached.")
+                raise Exception("Axis magnitude limit reached.")
 
             if verbose:
                 print(
@@ -94,12 +96,12 @@ class FieldAligner(object):
                     + "{0:.4f} mT".format((current_pos + direction * wiggle_step) * 1e3)
                 )
 
-            self.magnet.x_target(
-                current_pos + direction * wiggle_step)
+            eval(f'self.magnet.{axis}_target(
+                current_pos + direction * wiggle_step)')
             self.magnet.ramp(mode='safe')
             sleep(waiting_time)
 
-            new_pos = self.magnet.x_measured()
+            new_pos = eval(f'self.magnet.{axis}_measured()')
             new_objective = self.objective()
 
             objectives_meas.append(new_objective)
@@ -133,7 +135,7 @@ class FieldAligner(object):
             "Optimization finished after {} steps".format(nsteps),
             "\nTarget value from {0:.4f} GHz to ".format(objectives_meas[0] / 1e9)
             + "{0:.4f} GHz".format(optimum / 1e9),
-            "\nFinal X-field = {0:.3f} mT".format(new_pos * 1e3),
+            "\nFinal field = {0:.3f} mT".format(new_pos * 1e3),
         )
 
         extra = {"objectives": objectives_meas, "fields": locations}
@@ -145,7 +147,7 @@ class FieldAligner(object):
             plt.plot(plt_xs * 1e3, plt_ys)
             plt.scatter(plt_xs * 1e3, plt_ys, c=plt_ys)
             plt.colorbar()
-            plt.xlabel("X field [mT]")
+            plt.xlabel(f"{axis} field [mT]")
             plt.ylabel("Objective [GHz]")
 
         if return_extra:
@@ -158,6 +160,7 @@ class FieldAligner(object):
         rs,
         initial_theta,
         initial_phi,
+        axis,
         optimize_first=False,
         optimize_strategy=None,
         optimize_at=None,
@@ -169,18 +172,20 @@ class FieldAligner(object):
         **kwargs,
     ):
         """Ramps the magnetic field to the given magnitudes provided, optimizing
-        the objective by adjusting the x-field whenever required as given by
-        `optimize_strategy`. Use the **kwargs to set up optimize_x!
+        the objective by adjusting a specific axis whenever required as given by
+        `optimize_strategy`. Use the **kwargs to set up optimize_axis!
 
-        Args: rs (T): Array of magnitude values
+        Args: 
+        rs (T): Array of magnitude values
         initial_theta (deg): intial angle theta 
         initial_phi (deg): intial angle phi 
+        axis (str): axis used to optimize field
         optimize_first (boolean): Whether to
         optimize the field after ramping to the first field value. 
         optimize_strategy (str): four options are implemented:
         `objective_decrease` optimizes the alignment if the objective
         has decreased by more than `reoptimization_threshold` since the last
-        call to `optimize_x`. 
+        call to `optimize_axis`. 
         `optimize_at_fields` aligns only if the field is in the array `optimize_at`.
         `always` aligns every time after the field has been ramped
         And finally, if `None` is chosen, the alignment is never optimized.
@@ -261,7 +266,8 @@ class FieldAligner(object):
 
             if optimize_first and ii == 0:
                 print("First iteration, optimizing.")
-                current_objective = self.optimize_x(
+                current_objective = self.optimize_axis(
+                    axis=axis, 
                     verbose=verbose,
                     return_extra=False,
                     waiting_time=waiting_time,
@@ -280,7 +286,8 @@ class FieldAligner(object):
                     print(
                         f"Current and previous objectives differ by {distance}, thus re-optimizing."
                     )
-                    current_objective = self.optimize_x(
+                    current_objective = self.optimize_axis(
+                        axis=axis, 
                         verbose=verbose,
                         return_extra=False,
                         waiting_time=waiting_time,
@@ -291,7 +298,8 @@ class FieldAligner(object):
             elif optimize_strategy == "optimize_at_fields":
                 if np.any(np.isclose(r, optimize_at, atol=5e-4)):
                     print(f"Current field is in `optimize_at`, thus re-optimizing.")
-                    current_objective = self.optimize_x(
+                    current_objective = self.self.optimize_axis(
+                        axis=axis, 
                         verbose=verbose,
                         return_extra=False,
                         waiting_time=waiting_time,
@@ -302,7 +310,8 @@ class FieldAligner(object):
 
             elif optimize_strategy == "always":
                 print("Optimizing.")
-                current_objective = self.optimize_x(
+                current_objective = self.optimize_axis(
+                    axis=axis, 
                     verbose=verbose,
                     return_extra=False,
                     waiting_time=waiting_time,
