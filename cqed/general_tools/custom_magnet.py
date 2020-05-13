@@ -5,12 +5,12 @@ from time import sleep
 
 
 class CustomGS210(Instrument):
-    """Meta instrument that wraps the Yokogawa GS210 to allow setting (x) fields
+    """Meta instrument that wraps the Yokogawa GS210 to allow setting fields
     rather than currents.
 
-    x-field is hardcoded to allow for easy integrating into CustomMagnet below,
-    but we could/should generalize this.
-
+    The parameter structure follows that of the mercuryIPS for easy integration, 
+    but perhaps we can/should generalize this somehow. Need to have a look at the 
+    AMI driver.
     """
 
     def __init__(self, name, instrument, coil_constant, step=1e-6, delay=10e-3):
@@ -22,18 +22,18 @@ class CustomGS210(Instrument):
         self.delay = delay
 
         self.add_parameter(
-            "x_measured", unit="T", label="x measured field", get_cmd=self._get_field,
+            "field", unit="T", label="measured field", get_cmd=self._get_field,
         )
 
         self.add_parameter(
-            "x_target",
+            "field_target",
             unit="T",
-            label="x target field",
+            label="target field",
             get_cmd=self._get_target,
             set_cmd=self._set_target,
         )
 
-        self._field_target = self.x_measured()
+        self._field_target = self.field()
 
     def _get_field(self):
         if self.source.output() == "off":
@@ -54,18 +54,15 @@ class CustomGS210(Instrument):
             self.source.source_mode("CURR")
         self.source.output("on")
         self.source.ramp_current(
-            ramp_to=self.x_target()*self.coil_constant, step=self.step, delay=self.delay
+            ramp_to=self.field_target()*self.coil_constant, step=self.step, delay=self.delay
         )
 
 
 class CustomE36313A(Instrument):
-    """Meta instrument that wraps the Keysight E36313A to allow setting (x) fields
+    """Meta instrument that wraps the Keysight E36313A to allow setting fields
     rather than currents.
 
-    x-field is hardcoded to allow for easy integrating into CustomMagnet below,
-    but we could/should generalize this.
-
-    Need to add inputs
+    Need to add inputs, right now none of the options are settable.
     """
 
     def __init__(self, name, instrument, coil_constant):
@@ -75,18 +72,18 @@ class CustomE36313A(Instrument):
         self.coil_constant = coil_constant  # A/T
 
         self.add_parameter(
-            "x_measured", unit="T", label="x measured field", get_cmd=self._get_field,
+            "field", unit="T", label="measured field", get_cmd=self._get_field,
         )
 
         self.add_parameter(
-            "x_target",
+            "field_target",
             unit="T",
-            label="x target field",
+            label="target field",
             get_cmd=self._get_target,
             set_cmd=self._set_target,
         )
 
-        self._field_target = self.x_measured()
+        self._field_target = self.field()
 
     def _get_field(self):
         if self.source.ch1.enable() == "off":
@@ -109,59 +106,60 @@ class CustomE36313A(Instrument):
 
 class CustomMagnet(Instrument):
     """
-    Meta instrument to control the magnet using the MercuryIPS for the y and z axes
-    and a second source for the x axis.
+    Meta instrument to control the magnet using three individual magnet controllers.
+    For example: x_source is an AMIGS200, y_source is mgnt.GRPY, z_source is mgnt.GRPZ.
     """
 
-    def __init__(self, name, mercury_IPS, x_source):
+    def __init__(self, name, x_source, y_source, z_source):
         super().__init__(name)
 
-        self.mercury = mercury_IPS
         self.x_source = x_source
+        self.y_source = y_source
+        self.z_source = z_source
 
         self.add_parameter(
             "x_measured",
             unit="T",
             label="x measured field",
-            get_cmd=self.x_source.x_measured,
+            get_cmd=self.x_source.field,
         )
 
         self.add_parameter(
             "x_target",
             unit="T",
             label="x target field",
-            get_cmd=self.x_source.x_target,
-            set_cmd=self.x_source.x_target,
+            get_cmd=self.x_source.field_target,
+            set_cmd=self.x_source.field_target,
         )
 
         self.add_parameter(
             "y_measured",
             unit="T",
             label="y measured field",
-            get_cmd=self.mercury.y_measured,
+            get_cmd=self.y_source.field,
         )
 
         self.add_parameter(
             "y_target",
             unit="T",
             label="y target field",
-            get_cmd=self.mercury.y_target,
-            set_cmd=self.mercury.y_target,
+            get_cmd=self.y_source.field_target,
+            set_cmd=self.y_source.field_target,
         )
 
         self.add_parameter(
             "z_measured",
             unit="T",
             label="z measured field",
-            get_cmd=self.mercury.z_measured,
+            get_cmd=self.mercury.field,
         )
 
         self.add_parameter(
             "z_target",
             unit="T",
             label="z target field",
-            get_cmd=self.mercury.z_target,
-            set_cmd=self.mercury.z_target,
+            get_cmd=self.z_source.field_target,
+            set_cmd=self.z_source.field_target,
         )
 
     def ramp(self, mode='safe'):
@@ -177,15 +175,13 @@ class CustomMagnet(Instrument):
         targ_vals = self._get_targets()
         order = np.argsort(np.abs(np.array(targ_vals) - np.array(meas_vals)))
 
-        for slave in np.array(["X", "Y", "Z"])[order]:
-            if slave == "Y" or slave == "Z":
-                eval(f"self.mercury.GRP{slave}.ramp_to_target()")
-                while eval(f"self.mercury.GRP{slave}.ramp_status()") == "TO SET":
+        for slave in np.array(["x", "y", "z"])[order]:
+            eval(f"self.{slave}_source.ramp_to_target()")
+            try: #these try statements are a bit hacky; the oxfordIPS has a ramp status while it is ramping, the AMI/Keysight don't seem to have one, so I just implement it like this
+                while eval(f"self.{slave}_source.ramp_status()") == "TO SET":
                     sleep(0.1)
-            elif slave == "X":
-                eval(f"self.x_source.ramp_to_target()")
-                #need to figure out of the other sources also have a ramp status, and if so implement that in their custom drivers!
-
+            except:
+                pass
         self._update_field()
 
 
@@ -194,22 +190,33 @@ class CustomMagnet(Instrument):
         meas_vals = self._get_measured()
         targ_vals = self._get_targets()
         self.x_source.ramp_to_target()
+        try:
+            while self.x_source.ramp_status() == "TO SET":
+                sleep(0.1)
+        except:
+            pass
         self._update_field()
 
     def y_ramp(self):
         meas_vals = self._get_measured()
         targ_vals = self._get_targets()
-        self.mercury.GRPY.ramp_to_target()
-        while self.mercury.GRPY.ramp_status() == "TO SET":
-            sleep(0.1)
+        self.y_source.ramp_to_target()
+        try:
+            while self.y_source.ramp_status() == "TO SET":
+                sleep(0.1)
+        except:
+            pass
         self._update_field()
 
     def z_ramp(self):
         meas_vals = self._get_measured()
         targ_vals = self._get_targets()
-        self.mercury.GRPZ.ramp_to_target()
-        while self.mercury.GRPZ.ramp_status() == "TO SET":
-            sleep(0.1)
+        self.z_source.ramp_to_target()
+        try:
+            while self.z_source.ramp_status() == "TO SET":
+                sleep(0.1)
+        except:
+            pass
         self._update_field()   
 
     def _get_measured(self):
