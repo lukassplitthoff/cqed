@@ -301,11 +301,113 @@ def setup_frq_sweep_CW(
     vna_trace.power(pwr)
     vna_trace.electrical_delay()
 
+@MakeMeasurementFunction(
+    [
+        DataParameter("time", "s", "array", True),
+        DataParameter("I", "", "array"),
+        DataParameter("Q", "", "array"),
+    ]
+)
+def return_vna_trace_CW(d):
+    """Pysweep VNA measurement function that returns ..
+
+    Returns:
+        VNA ..
+
+    """
+    station = d["STATION"]
+    bw = station.vna.S21.bandwidth()
+    sweep_time = station.vna.S21.sweep_time()
+    npts = station.vna.S21.npts()
+    times = np.linspace(1/bw, sweep_time, npts)
+
+    if not station.vna.rf_power():
+        station.vna.rf_on()
+
+    vna_data = station.vna.S21.trace_fixed_frequency()
+
+    return [times, vna_data[0], vna_data[1]]
+    
+
+@MakeMeasurementFunction([DataParameter(name='signal', unit='dB'), 
+                          DataParameter(name='noise', unit='dB'), 
+                          DataParameter(name='SNR', unit='dB')])
+def return_SNR_CW(d):
+    """Pysweep VNA measurement function that returns ..
+
+    Returns:
+        VNA ..
+
+    """
+    station = d["STATION"]
+
+    if not station.vna.rf_power():
+        station.vna.rf_on()
+
+    vna_data = station.vna.S21.trace_fixed_frequency()
+    I = vna_data[0]
+    Q = vna_data[1]
+    S = I + 1j*Q
+    lin_mean = np.abs(S.mean())
+    lin_std = np.abs(S.std())
+    
+    return [20*np.log10(lin_mean), 20*np.log10(lin_std), 20*np.log10(lin_mean/lin_std)]
+
+
+def measure_PSD_averaged(f0, bandwidth, points, averages, **kwargs):
+    @MakeMeasurementFunction(
+        [
+            DataParameter("Frequency", "Hz", "array", True),
+            DataParameter("PSD_I", "", "array"),
+            DataParameter("PSD_Q", "", "array"),
+        ]
+    )
+    def return_PSD_CW(d):
+        """Pysweep VNA measurement function that returns .... Work in progress!
+
+        Returns:
+            VNA ..
+
+        """
+        station = d["STATION"]
+
+        if not station.vna.rf_power():
+            station.vna.rf_on()
+        setup_frq_sweep_CW(station=station, cw_frequency=f0, npts=points, bw=bandwidth, **kwargs)
+        fft_Q_array = []
+        fft_I_array = []
+
+        for ii in range(averages):
+            vna_data = station.vna.S21.trace_fixed_frequency()
+            I = vna_data[0]
+            Q = vna_data[1]
+
+            bw = station.vna.S21.bandwidth()
+            sweep_time = station.vna.S21.sweep_time()
+            npts = station.vna.S21.npts()
+            times = np.linspace(1/bw, sweep_time, npts)
+
+            n = times.size
+            step = np.diff(times)[0]
+            fftfreq = np.fft.fftfreq(n, d=step)
+            fft_Q = np.abs(np.fft.fft(Q-np.mean(Q)))**2
+            fft_I = np.abs(np.fft.fft(I-np.mean(I)))**2
+            fft_Q_array.append(fft_Q)
+            fft_I_array.append(fft_I)
+
+        fft_Q_array = np.mean(np.array(fft_Q_array), axis=0)
+        fft_I_array = np.mean(np.array(fft_I_array), axis=0)
+        return [fftfreq, fft_Q_array, fft_I_array]
+
+    return return_PSD_CW
+
+
 @MakeMeasurementFunction([DataParameter(name='amplitude', unit=''), 
                           DataParameter(name='phase', unit='rad')])
-def measure_point_CW(d):
+def return_vna_point_CW(d):
     station = d["STATION"]
     return list(station.vna.S21.point_fixed_frequency_mag_phase())
+
 
 def measure_CW_optimized(cw_frequency, **kwargs):
     """Pysweep VNA measurement function that measures in CW at frequency
@@ -339,7 +441,7 @@ def measure_CW_optimized(cw_frequency, **kwargs):
             cw_frequency=d["f0"],
             **kwargs
         )
-        data = measure_point_CW(d)
+        data = return_vna_point_CW(d)
         return [data[0], data[1]]
 
     return cw_measurement_function
