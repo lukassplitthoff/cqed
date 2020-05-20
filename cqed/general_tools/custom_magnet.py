@@ -11,9 +11,14 @@ class CustomGS210(Instrument):
     The parameter structure follows that of the mercuryIPS for easy integration, 
     but perhaps we can/should generalize this somehow. Need to have a look at the 
     AMI driver.
+
+    args:
+    coil_constant (A/T): coil_constant of magnet used
+    step (A): step size taken when ramping. Note the unit!
+    delay (s): delay after each step taken when ramping
     """
 
-    def __init__(self, name, instrument, coil_constant, step=1e-6, delay=10e-3):
+    def __init__(self, name, instrument, coil_constant, step=1e-5, delay=5e-2):
         super().__init__(name)
 
         self.source = instrument
@@ -62,14 +67,20 @@ class CustomE36313A(Instrument):
     """Meta instrument that wraps the Keysight E36313A to allow setting fields
     rather than currents.
 
-    Need to add inputs, right now none of the options are settable.
+    args:
+    coil_constant (A/T): coil_constant of magnet used
+    step (A): step size taken when ramping. Note the unit!
+    delay (s): delay after each step taken when ramping
     """
 
-    def __init__(self, name, instrument, coil_constant):
+    def __init__(self, name, instrument, coil_constant, step=6e-4, delay=5e-2):
         super().__init__(name)
 
         self.source = instrument
         self.coil_constant = coil_constant  # A/T
+        assert step >= 6e-4 #resolution of the source
+        self.step = step
+        self.delay = delay
 
         self.add_parameter(
             "field", unit="T", label="measured field", get_cmd=self._get_field,
@@ -89,7 +100,7 @@ class CustomE36313A(Instrument):
         if self.source.ch1.enable() == "off":
             B_value = 0
         else:
-            I_value = self.source.ch1.current()
+            I_value = self.source.ch1.source_current()
             B_value = I_value / self.coil_constant
         return B_value
 
@@ -97,11 +108,24 @@ class CustomE36313A(Instrument):
         return self._field_target
 
     def _set_target(self, val):
+        assert 10/self.coil_constant > val >= 1e-3/self.coil_constant #ranges of the source
         self._field_target = val
 
     def ramp_to_target(self):
+        #this should be implemented on the driver level! Make a fork and pull request to qcodes_drivers_contrib?
         self.source.ch1.enable("on")
-        self.source.ch1.source_current(self.x_target()*self.coil_constant)
+        resolution = 6e-4/self.coil_constant #resolution of the source, which is quite coarse so we hardcode it to avoid weirdness
+        step_sign = np.sign(self.field_target()-self.field())
+        try:
+            field_values = np.append(np.arange(self.field(), self.field_target(), step_sign*self.step), self.field_target())
+            field_values = resolution * np.round(field_values / resolution)
+            for val in field_values:
+                self.source.ch1.source_current(val*self.coil_constant)
+                sleep(self.delay)
+        except:
+            pass
+            #hacky workaround for when your higher level sweep function starts from the current setpoint
+
 
 
 class CustomMagnet(Instrument):
@@ -151,7 +175,7 @@ class CustomMagnet(Instrument):
             "z_measured",
             unit="T",
             label="z measured field",
-            get_cmd=self.mercury.field,
+            get_cmd=self.z_source.field,
         )
 
         self.add_parameter(
