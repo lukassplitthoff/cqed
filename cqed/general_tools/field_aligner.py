@@ -96,8 +96,7 @@ class FieldAligner(object):
                     + "{0:.4f} mT".format((current_pos + direction * wiggle_step) * 1e3)
                 )
 
-            eval(f'self.magnet.{axis}_target(
-                current_pos + direction * wiggle_step)')
+            eval(f'self.magnet.{axis}_target(current_pos + direction * wiggle_step)')
             self.magnet.ramp(mode='safe')
             sleep(waiting_time)
 
