@@ -168,7 +168,7 @@ def sweep_theta(r, phi, points, max_field_strength=1.5):
     return SweepObject(set_function = set_function, unit = 'degrees', label = 'theta', point_function = point_function, dataparameter=None )
 
 
-def sweep_r(phi, theta, points, max_field_strength=1.5):
+def sweep_r(phi, theta, points, max_field_strength=1.5, offset_x=0, offset_y=0, offset_z=0):
     ''' Generate a pysweep.SweepObject to sweep field amplitude at fixed phi and theta.
     Here we use the ISO 80000-2:2009 physics convention for the (r, theta, phi) <--> (x, y, z) definition. 
     Only values for the x, y, and z component are passed to the magnet.
@@ -206,9 +206,9 @@ def sweep_r(phi, theta, points, max_field_strength=1.5):
      
         station = d['STATION']
         
-        x = r*np.sin(np.radians(theta))*np.cos(np.radians(phi))
-        y = r*np.sin(np.radians(theta))*np.sin(np.radians(phi))
-        z = r*np.cos(np.radians(theta))        
+        x = r*np.sin(np.radians(theta))*np.cos(np.radians(phi)) + offset_x
+        y = r*np.sin(np.radians(theta))*np.sin(np.radians(phi)) + offset_y
+        z = r*np.cos(np.radians(theta)) + offset_z        
         
         station.mgnt.x_target(x)
         station.mgnt.y_target(y)
