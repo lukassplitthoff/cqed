@@ -6,3 +6,4 @@
 *.png
 *.pdf
 cqed.egg-info
+.idea/
