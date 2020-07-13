@@ -358,8 +358,8 @@ def measure_PSD_averaged(f0, bandwidth, points, averages, **kwargs):
     @MakeMeasurementFunction(
         [
             DataParameter("Frequency", "Hz", "array", True),
-            DataParameter("PSD_I", "", "array"),
-            DataParameter("PSD_Q", "", "array"),
+            DataParameter("PSDI", "pwr", "array"),
+            DataParameter("PSDQ", "pwr", "array"),
         ]
     )
     def return_PSD_CW(d):
