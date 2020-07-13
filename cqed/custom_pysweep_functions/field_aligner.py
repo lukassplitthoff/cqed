@@ -3,6 +3,7 @@
 # cQED group @Kouwenhoven-lab TU Delft
 
 from cqed.custom_pysweep_functions.vna import return_vna_trace
+
 import numpy as np
 from time import sleep
 import matplotlib.pyplot as plt
@@ -115,7 +116,7 @@ class FieldAligner:
                   '{0:.3f} mT'.format((pos + direction * wiggle_step)*1000))
 
             self.x_field_par(pos + direction * wiggle_step)
-            sleep(.)
+            sleep(0.1)
             #I dont think we need this anymore
             # if np.abs(pos - newpos) < 0.8 * wiggle_step:
             #     continue
