@@ -374,8 +374,6 @@ def measure_PSD_averaged(f0, bandwidth, points, averages, **kwargs):
         if not station.vna.rf_power():
             station.vna.rf_on()
         setup_frq_sweep_CW(station=station, cw_frequency=f0, npts=points, bw=bandwidth, **kwargs)
-        fft_Q_array = []
-        fft_I_array = []
 
         for ii in range(averages):
             vna_data = station.vna.S21.trace_fixed_frequency()
@@ -392,13 +390,15 @@ def measure_PSD_averaged(f0, bandwidth, points, averages, **kwargs):
             fftfreq = np.fft.fftfreq(n, d=step)
             fft_Q = np.abs(np.fft.fft(Q-np.mean(Q)))**2
             fft_I = np.abs(np.fft.fft(I-np.mean(I)))**2
-            fft_Q_array.append(fft_Q)
-            fft_I_array.append(fft_I)
+            if ii == 0:
+                fft_Q_array = fft_Q
+                fft_I_array = fft_I
+            else:
+                fft_Q_array = (fft_Q_array*(ii)+fft_Q)/(ii+1)
+                fft_I_array = (fft_I_array*(ii)+fft_I)/(ii+1)
 
-        fft_Q_array = np.mean(np.array(fft_Q_array), axis=0)
-        fft_I_array = np.mean(np.array(fft_I_array), axis=0)
         return [fftfreq, fft_Q_array, fft_I_array]
-
+                
     return return_PSD_CW
 
 
