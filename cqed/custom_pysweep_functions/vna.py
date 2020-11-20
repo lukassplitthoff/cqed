@@ -90,7 +90,6 @@ def return_vna_trace(d):
 
     return [freqs, vna_data[0], vna_data[1]]
 
-
 def transmission_vs_frequency_explicit(center, span, suffix=None):
     """Pysweep VNA measurement function that returns an S21 trace given the currently
     set VNA parameters for a given center frequency a given span and a given suffix.
@@ -309,6 +308,10 @@ def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
             fstep=fstep,
             **kwargs
         )
+        # try:
+        #     station.qubsrc.off()
+        # except:
+        #     pass
         cal = return_vna_trace(d)
         m0 = res_finder(cal[0], 20 * np.log10(cal[1]))
         if m0 == None:
@@ -517,7 +520,7 @@ def return_vna_point_CW(d):
     return list(station.vna.S21.point_fixed_frequency_mag_phase())
 
 
-def measure_CW_optimized(cw_frequency, **kwargs):
+def measure_CW_optimized(cw_frequency, suffix='', qubsrc_power=None, ignore_dict=False, **kwargs):
     """Pysweep VNA measurement function that measures in CW at frequency
     cw_frequency.
 
@@ -526,6 +529,9 @@ def measure_CW_optimized(cw_frequency, **kwargs):
 
     Args:
     cw_frequency (Hz): Frequency at which to measure. Ignored if there is already an f0 in d['f0'].
+    qubsrc_power (dBm): power of a qubsrc in the station. Hardcoded, should be more subtle.
+    ignore_dict (boolean): if true, cw_frequency is taken only from the input, not from the dictionary. 
+    Useful when doing multiple CW measurements at different frequencies in the same measurement. But not very clever.
     kwargs: see `setup_frq_sweep_CW`.
 
     Returns:
@@ -535,61 +541,31 @@ def measure_CW_optimized(cw_frequency, **kwargs):
 
     @MakeMeasurementFunction(
         [
-            DataParameter("amplitude", "", "array"),
-            DataParameter("phase", "rad", "array"),
+            DataParameter("amplitude"+suffix, "", "array"),
+            DataParameter("phase"+suffix, "rad", "array"),
         ]
     )
     def cw_measurement_function(d):
         station = d["STATION"]
-
-        if "f0" not in d:
-            d["f0"] = cw_frequency
-        setup_frq_sweep_CW(
-            station=station,
-            cw_frequency=d["f0"],
-            **kwargs
-        )
+        if qubsrc_power != None:
+            station.qubsrc.power(qubsrc_power)
+        if ignore_dict == False:
+            if "f0" not in d:
+                d["f0"] = cw_frequency
+            setup_frq_sweep_CW(
+                station=station,
+                cw_frequency=d["f0"],
+                **kwargs
+            )
+        else:
+            setup_frq_sweep_CW(
+                station=station,
+                cw_frequency=cw_frequency,
+                **kwargs
+            )
         data = return_vna_point_CW(d)
         return [data[0], data[1]]
 
     return cw_measurement_function
 
 
-def measure_CW_optimized_two_frequencies(cw_frequency_0, cw_frequency_1, **kwargs):
-    """
-
-    Quickly hacking this together. Make it nicer later?
-    """
-
-    @MakeMeasurementFunction(
-        [
-            DataParameter("amplitude_0", "", "array"),
-            DataParameter("phase_0", "rad", "array"),
-            DataParameter("amplitude_1", "", "array"),
-            DataParameter("phase_1", "rad", "array"),
-        ]
-    )
-    def cw_measurement_function(d):
-        station = d["STATION"]
-
-        if "f0" not in d:
-            d["f0_0"] = cw_frequency_0
-            d["f0_1"] = cw_frequency_1
-
-        setup_frq_sweep_CW(
-            station=station,
-            cw_frequency=d["f0_0"],
-            **kwargs
-        )
-        data_0 = return_vna_point_CW(d)
-
-        setup_frq_sweep_CW(
-            station=station,
-            cw_frequency=d["f0_1"],
-            **kwargs
-        )
-        data_1 = return_vna_point_CW(d)
-
-        return [data_0[0], data_0[1], data_1[0], data_1[1]]
-
-    return cw_measurement_function

@@ -6,10 +6,59 @@ from pysweep.core.measurementfunctions import MakeMeasurementFunction
 from pysweep.databackends.base import DataParameter
 import numpy as np
 from pytopo.rf.alazar.softsweep import setup_triggered_softsweep
+from pytopo.rf.alazar.awg_sequences import TriggerSequence
+import qcodes
 
-def measure_trace_alazar(controller, sweep_param, sweep_vals, integration_time, 
+def setup_single_averaged_IQpoint(controller, time_bin, integration_time, setup_awg=True,
+                                  post_integration_delay=10e-6,
+                                  verbose=True, allocated_buffers=None):
+    """
+    Setup the alazar to measure a single IQ value / buffer.
+
+    Note: we always average over buffers here (determined by time_bin and integration_time).
+    This implies that you need to use a trigger sequence with a trigger interval that 
+    corresponds to an even number of IF periods.
+    """
+    station = qcodes.Station.default
+    alazar = station.alazar
+
+    navgs = int(integration_time / time_bin)
+
+    if setup_awg:
+        trig_seq = TriggerSequence(station.awg, SR=1e7)
+        trig_seq.wait = 'off'
+        trig_seq.setup_awg(
+            cycle_time=time_bin, debug_signal=False, ncycles=1, plot=False)
+
+    ctl = controller
+    ctl.buffers_per_block(None)
+    ctl.average_buffers(True)
+
+    ctl.setup_acquisition(samples=int((time_bin-post_integration_delay) * alazar.sample_rate() // 128 * 128),
+                          records=1, buffers=navgs, allocated_buffers=allocated_buffers, verbose=verbose)
+
+def measure_single_averaged_IQpoint(controller, time_bin, integration_time, channel=0, **kw):
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("amplitude", "", "array"),
+            DataParameter("phase", "rad", "array"),
+        ]
+    )
+    def return_alazar_point(d):   
+        # setup_single_averaged_IQpoint(controller, time_bin, integration_time, setup_awg=True,
+        #                           verbose=True, allocated_buffers=None)
+
+        station = d["STATION"]
+        data = controller.acquisition()
+        data = np.squeeze(data)[..., 0].mean()
+        mag, phase = np.abs(data), np.angle(data, deg=False)
+
+        return [mag, phase]
+    return return_alazar_point
+
+def measure_soft_time_avg_spec(controller, sweep_param, sweep_vals, integration_time, 
                                 exp_name=None, channel=0, **kw):
-
 
     @MakeMeasurementFunction(
         [
@@ -30,7 +79,7 @@ def measure_trace_alazar(controller, sweep_param, sweep_vals, integration_time,
         return [freqs, mag, phase]
     return return_alazar_trace
 
-def measure_trace_alazar_optimized(controller, sweep_param, sweep_vals, integration_time, hetsrc, hetsrc_freq, 
+def measure_soft_time_avg_spec_optimized(controller, sweep_param, sweep_vals, integration_time, hetsrc, hetsrc_freq, 
                                 exp_name=None, channel=0, **kw):
 
     @MakeMeasurementFunction(
@@ -84,7 +133,7 @@ def measure_resonance_estimate(controller, sweep_param, sweep_vals, integration_
         if "f0" not in d:
             d["f0"] = f0
         station = d["STATION"]
-        cal = measure_trace_alazar(controller, sweep_param, sweep_vals, integration_time, 
+        cal = measure_soft_time_avg_spec(controller, sweep_param, sweep_vals, integration_time, 
                                 exp_name=None, **kw)(d)
         m0 = res_finder(cal[0], 20 * np.log10(cal[1]))
         if m0 == None:

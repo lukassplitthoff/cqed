@@ -110,7 +110,7 @@ class Magnet():
         @MakeMeasurementFunction([])
         def set_function(phi, d):
 
-            assert max_field_strength > r > 0.0, (
+            assert max_field_strength > r >= 1e-9, (
                 "The field amplitude must not exceed {} and be larger than 0."
                 " Upper limit can be adjusted with kwarg: max_field_strength."
                 " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
@@ -182,19 +182,19 @@ class Magnet():
             # For uniqueness, we restrict the parameter choice to r>=0, 0<= theta <= pi and 0<= phi <= 2pi.
             # The units are: r in T, theta in degrees, phi in degrees.
 
-            assert max_field_strength > r > 0.0, (
+            assert max_field_strength > r >= 0.0, (
                 "The field amplitude must not exceed {} and be lager than 0."
                 " Upper limit can be adjusted with kwarg: max_field_strength."
                 " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
                     max_field_strength
                 )
             )
-            assert (
-                0.0 <= theta <= 180.0
-            ), "The inclination angle must be equal or lager than 0 and smaller or equal than 180. Change setting!"
-            assert (
-                0.0 <= phi <= 2 * 180.0
-            ), "The azimuth angle must be equal or lager than 0 and smaller or equal than 360. Change setting!"
+            # assert (
+            #     0.0 <= theta <= 180.0
+            # ), "The inclination angle must be equal or lager than 0 and smaller or equal than 180. Change setting!"
+            # assert (
+            #     0.0 <= phi <= 2 * 180.0
+            # ), "The azimuth angle must be equal or lager than 0 and smaller or equal than 360. Change setting!"
 
             station = d["STATION"]
 
@@ -254,19 +254,19 @@ class Magnet():
             # For uniqueness, we restrict the parameter choice to r>=0, 0<= theta <= pi and 0<= phi <= 2pi.
             # The units are: r in T, theta in degrees, phi in degrees.
 
-            assert max_field_strength > r > 0.0, (
+            assert max_field_strength > r > -max_field_strength, (
                 "The field amplitude must not exceed {} and be larger than 0."
                 " Upper limit can be adjusted with kwarg: max_field_strength."
                 " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
                     max_field_strength
                 )
             )
-            assert (
-                0.0 <= theta <= 180.0
-            ), "The inclination angle must be equal or lager than 0 and smaller or equal than 180. Change setting!"
-            assert (
-                0.0 <= phi <= 2 * 180.0
-            ), "The azimuth angle must be equal or lager than 0 and smaller or equal than 360. Change setting!"
+            # assert (
+            #     0.0 <= theta <= 180.0
+            # ), "The inclination angle must be equal or lager than 0 and smaller or equal than 180. Change setting!"
+            # assert (
+            #     0.0 <= phi <= 2 * 180.0
+            # ), "The azimuth angle must be equal or lager than 0 and smaller or equal than 360. Change setting!"
 
             station = d["STATION"]
 
@@ -336,7 +336,7 @@ class Magnet():
             # For uniqueness, we restrict the parameter choice to r>=0, 0<= theta <= pi and 0<= phi <= 2pi.
             # The units are: r in T, theta in degrees, phi in degrees.
 
-            assert max_field_strength > r > 1e-9, (
+            assert max_field_strength > r >= 1e-9, (
                 "The field amplitude must not exceed {} and be lager than 0."
                 " Upper limit can be adjusted with kwarg: max_field_strength."
                 " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
