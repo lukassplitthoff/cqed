@@ -1,5 +1,6 @@
 from pathlib import Path
-from qcodes import initialise_or_create_database_at, config
+from qcodes import initialise_or_create_database_at, config, load_by_id
+from xarray import merge
 
 
 def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_dir='D:/Data'):
@@ -22,3 +23,20 @@ def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_
     dest_path = Path(dest_dir, db_name)
     initialise_or_create_database_at(dest_path)
     config['core']['db_location'] = dest_path
+
+
+def db_to_xarray(ind):
+    """
+    Take a dataset from a qcodes database identified by its ID and transform it into a xarray.Dataset
+
+    @param ind: index of the dataset in the QCoDeS database you want to transform to a XArray
+    @return: xarray.Dataset with the independent parameters as coordinates,
+     and the dependent parameters as Data variables
+    """
+
+    d = load_by_id(ind)
+    _df = []
+    for obj in d.dependent_parameters:
+        _df += [d.get_data_as_pandas_dataframe()[obj.name].to_xarray()]
+
+    return merge([*_df])
