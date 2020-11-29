@@ -19,13 +19,13 @@ def fit_resonator(array, fit_axis, plot_fit=False):
     """
 
     _z = array.amplitude.values * np.exp(1j * array.phase.values)
-    z = DataArray(_z.T, name='complex', coords=array.coords, dims=list(array.dims.keys()))
+    z = DataArray(_z, name='complex', coords={fit_axis: getattr(array, fit_axis), 'frequency': array.frequency},
+                  dims=[fit_axis, 'frequency'])
 
     array = merge([array, z])
 
     fitresults = np.zeros((getattr(array, fit_axis).shape[0], 15))
     fit_data = np.empty_like(array.complex.values)
-    _dAXA = []
 
     for i in range(getattr(array, fit_axis).shape[0]):
 
@@ -34,6 +34,7 @@ def fit_resonator(array, fit_axis, plot_fit=False):
         res_fit = notch_port(f_data=array.frequency.values, z_data_raw=z_dat)
         res_fit.autofit()
         fitresults[i, :] = list(res_fit.fitresults.values())
+
         fit_data[i, :] = res_fit.z_data_sim
 
         if plot_fit:
@@ -50,7 +51,10 @@ def fit_resonator(array, fit_axis, plot_fit=False):
         _fxA += [DataArray(fitresults[:, i], name=list(res_fit.fitresults.keys())[i],
                            coords={fit_axis: getattr(array, fit_axis).values}, dims=[fit_axis])]
 
-    _zfitxA = DataArray(fit_data.T, name='complex_fit', coords=array.coords, dims=array.dims)
+    _zfitxA = DataArray(fit_data, name='complex_fit', coords={fit_axis: getattr(array, fit_axis),
+                                                              'frequency': array.frequency},
+                        dims=[fit_axis, 'frequency'])
+
     array = merge([array, *_fxA, _zfitxA])
 
     return array
