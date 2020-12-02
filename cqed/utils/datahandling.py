@@ -1,5 +1,5 @@
 from pathlib import Path
-from qcodes import initialise_or_create_database_at, config, load_by_id
+from qcodes import initialise_or_create_database_at, config, load_by_run_spec
 from xarray import merge
 
 
@@ -25,16 +25,19 @@ def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_
     config['core']['db_location'] = dest_path
 
 
-def db_to_xarray(ind):
+def db_to_xarray(ind, **kwargs):
     """
     Take a dataset from a qcodes database identified by its ID and transform it into a xarray.Dataset
+    Wraps around the function load_by_run_spec, which allows to get data from different databases, if you supply
+    the corresponding connection.
 
     @param ind: index of the dataset in the QCoDeS database you want to transform to a XArray
+    @param kwargs: kwargs to be passed to the underlying qcodes function load_by_run_spec
     @return: xarray.Dataset with the independent parameters as coordinates,
      and the dependent parameters as Data variables
     """
 
-    d = load_by_id(ind)
+    d = load_by_run_spec(captured_run_id=ind, **kwargs)
     _df = []
     for obj in d.dependent_parameters:
         _df += [d.get_data_as_pandas_dataframe()[obj.name].to_xarray()]
