@@ -2,7 +2,7 @@ instruments:
 
   vna:
     type: qcodes.instrument_drivers.rohde_schwarz.ZNB.ZNB
-    address: TCPIP::169.254.82.128::inst0::INSTR #TCPIP::169.254.164.139::inst0::INSTR (VNA 1)
+    address: TCPIP::169.254.164.139::inst0::INSTR #TCPIP::169.254.164.139::inst0::INSTR (VNA 1)
     enable_forced_reconnect: true
     init:
       init_s_params: false 
@@ -36,7 +36,7 @@ instruments:
 
   E36313A:
     type: qcodes_contrib_drivers.drivers.Keysight.Keysight_E36313A.E36313A
-    address: TCPIP::169.254.108.91::inst0::INSTR
+    address: TCPIP::169.254.17.194::inst0::INSTR
     enable_forced_reconnect: true 
 
 #################################
@@ -52,16 +52,16 @@ instruments:
     enable_forced_reconnect: true
   
   qubsrc:
-    type: qcodes.instrument_drivers.agilent.E8267C.E8267
-    address: GPIB0::29::INSTR
+    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
+    address: TCPIP0::169.254.2.20
     enable_forced_reconnect: true
 
   LO:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
-    address: TCPIP0::169.254.103.129
+    address: TCPIP0::169.254.56.16
     enable_forced_reconnect: true
 
-  REF:
+  RF:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
-    address: TCPIP0::169.254.135.59
+    address: TCPIP0::169.254.41.53
     enable_forced_reconnect: true     
