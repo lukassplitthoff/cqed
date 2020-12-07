@@ -9,7 +9,7 @@ from pytopo.rf.alazar.softsweep import setup_triggered_softsweep
 from pytopo.rf.alazar.awg_sequences import TriggerSequence
 import cqed.awg_sequences
 import qcodes
-from cqed.awg_sequences.awg_sequences import RabiSequence, RamseySequence, T1Sequence, EchoSequence
+from cqed.awg_sequences.awg_sequences import RabiSequence, RamseySequence, T1Sequence, EchoSequence, QPTriggerSequence
 import time
 
 def setup_single_averaged_IQpoint(controller, time_bin, integration_time, setup_awg=True,
@@ -353,4 +353,49 @@ def measure_echo(controller, delays, pulse_time, readout_time,
         #but without them the timing goes wrong
 
         return [times, mag, phase]
+    return return_alazar_trace
+
+
+def setup_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True):
+    """
+    Set up ...
+    """
+
+    station = qcodes.Station.default
+
+    # setting up the AWG
+    if setup_awg:
+        seq = QPTriggerSequence(station.awg, SR=1e7)
+        seq.load_sequence(cycle_time=acq_time+1e-3, plot=False, use_event_seq = True, ncycles = navg)
+        
+    controller.verbose = True
+    controller.average_buffers(False)
+    controller.average_buffers_postdemod(False)  
+    station.alazar.sample_rate(int(SR))
+    npoints = int(acq_time*SR // 128 * 128)
+    controller.setup_acquisition(npoints, 1, navg)
+    print(controller, navg, acq_time, controller.demod_frq(), npoints)
+
+def measure_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True, **kw):
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("timestamp", "s", "array", True),
+        ]
+    )
+    def return_alazar_trace(d):
+
+        setup_QPP(controller, acq_time, navg, SR=SR, setup_awg=setup_awg, **kw)      
+
+        station = d["STATION"]
+        station.alazar.clear_buffers()
+        data = np.squeeze(controller.acquisition())[...,0]
+        time.sleep(0.1)
+
+        timestamp = int(time.time()*1e6)
+        datasaver_run_id = d["DATASAVER"].datasaver._dataset.run_id
+        data_folder_path = str(qcodes.config.core.db_location)[:-3]+"\\"
+        np.save(data_folder_path+"ID_"+f"{datasaver_run_id}_IQ_{timestamp:d}",[controller.demod_tvals, data])
+
+        return [timestamp]
     return return_alazar_trace

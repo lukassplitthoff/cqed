@@ -21,11 +21,10 @@ class RabiSequence(BroadBeanSequence):
     def sequence(self, pulse_times=None, amplitudes=None, pulse_time=20e-9, amplitude=0.5, readout_time=2.6e-9, cycle_time = 10e-6,
                  pre_pulse_time=1e-6, after_pulse_time=0.02e-6,
                  alazar_trigger_time=100e-9, marker_buffer=20e-9, cavity_lifetime=0.3e-6):
-        
         ii = 0
-        if amplitudes:
-            ii += 1
-        if pulse_times:
+        if type(amplitudes) is np.ndarray:
+            ii += 1 
+        if type(pulse_times) is np.ndarray:
             ii += -1
 
         if ii == 0:
