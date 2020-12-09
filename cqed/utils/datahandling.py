@@ -29,7 +29,8 @@ def db_to_xarray(ind, **kwargs):
     """
     Take a dataset from a qcodes database identified by its ID and transform it into a xarray.Dataset
     Wraps around the function load_by_run_spec, which allows to get data from different databases, if you supply
-    the corresponding connection.
+    the corresponding connection. The snapshot of the dataset is available via the attrs attribute of the returned
+    xarray.Dataset.
 
     @param ind: index of the dataset in the QCoDeS database you want to transform to a XArray
     @param kwargs: kwargs to be passed to the underlying qcodes function load_by_run_spec
@@ -42,4 +43,7 @@ def db_to_xarray(ind, **kwargs):
     for obj in d.dependent_parameters:
         _df += [d.get_data_as_pandas_dataframe()[obj.name].to_xarray()]
 
-    return merge([*_df])
+    ds = merge([*_df])
+    ds.attrs['snapshot'] = d.snapshot
+
+    return ds
