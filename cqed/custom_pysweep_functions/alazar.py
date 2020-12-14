@@ -11,6 +11,9 @@ import cqed.awg_sequences
 import qcodes
 from cqed.awg_sequences.awg_sequences import RabiSequence, RamseySequence, T1Sequence, EchoSequence, QPTriggerSequence
 import time
+from pathlib import Path
+import lmfit
+import cqed.general_tools.data_processing as dp
 
 def setup_single_averaged_IQpoint(controller, time_bin, integration_time, setup_awg=True,
                                   post_integration_delay=10e-6,
@@ -169,7 +172,7 @@ def setup_time_rabi(controller, pulse_times, readout_time,
     controller.setup_acquisition(samples=None, records=pulse_times.size, buffers=navgs, acq_time=acq_time, verbose=False)
 
 def measure_time_rabi(controller, pulse_times, readout_time,  
-                              navgs=500, acq_time=2.56e-6, setup_awg=True, **kw):
+                              navgs=500, acq_time=2.56e-6, setup_awg=True, fit_pipulse=False, **kw):
 
     @MakeMeasurementFunction(
         [
@@ -194,8 +197,22 @@ def measure_time_rabi(controller, pulse_times, readout_time,
         station.awg.stop()
         time.sleep(0.1)
 
-        #it is unclear which combination of off and stop and sleep is required
-        #but without them the timing goes wrong
+        if fit_pipulse:
+
+            #rotate IQ data
+            angle = dp.IQangle(mag*np.exp(1.j*phase))
+            rotated_data = dp.IQrotate(mag*np.exp(1.j*phase), angle)
+
+            #fit Rabi; still needs work because it can be off by a factor of pi in the phase depending on the sign of the first value!
+            mod = lmfit.models.ExpressionModel('off + amp * exp(-x/t1)*sin(2*pi/period*(x + phase))')
+            xdat = times
+            ydat = np.real(rotated_data)
+            params = mod.make_params(off=ydat[-1], amp=ydat[0], t1=1e-6, period=100e-9, phase=0)
+            params['t1'].set(min=1e-9)
+            out = mod.fit(ydat, params, x=xdat)
+            pipulse_time = out.params['period'].value/4  - out.params['phase'].value
+
+            d['pipulse'] = pipulse_time
 
         return [times, mag, phase]
     return return_alazar_trace
@@ -264,6 +281,9 @@ def setup_T1(controller, delays, pulse_time, readout_time,
     if setup_awg:
         seq = T1Sequence(station.awg, SR=1e9)
         seq.wait = 'all'
+        # if 
+        #     seq.setup_awg(delays = delays, pulse_time=pulse_time, readout_time=readout_time, cycle_time = 20e-6, start_awg=True)
+        # else:
         seq.setup_awg(delays = delays, pulse_time=pulse_time, readout_time=readout_time, cycle_time = 20e-6, start_awg=True)
         
     controller.verbose = True
@@ -380,7 +400,7 @@ def measure_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True, **kw):
 
     @MakeMeasurementFunction(
         [
-            DataParameter("timestamp", "s", "array", True),
+            DataParameter("timestamp", "s", "array", False),
         ]
     )
     def return_alazar_trace(d):
@@ -395,6 +415,7 @@ def measure_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True, **kw):
         timestamp = int(time.time()*1e6)
         datasaver_run_id = d["DATASAVER"].datasaver._dataset.run_id
         data_folder_path = str(qcodes.config.core.db_location)[:-3]+"\\"
+        Path(data_folder_path).mkdir(parents=True, exist_ok=True)
         np.save(data_folder_path+"ID_"+f"{datasaver_run_id}_IQ_{timestamp:d}",[controller.demod_tvals, data])
 
         return [timestamp]
