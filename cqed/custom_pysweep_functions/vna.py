@@ -10,59 +10,6 @@ from pysweep.databackends.base import DataParameter
 import numpy as np
 
 
-def setup_frq_sweep(
-    station,
-    fstart,
-    fstop,
-    fstep,
-    chan="S21",
-    bw=None,
-    navgs=None,
-    pwr=None,
-    electrical_delay=None,
-):
-    """Function that sets up the VNA according to the specified parameters, leaving
-    other parameters intact. Frequency parameters are required, others are optional.
-    Assumes that a channel with name `chan` is already created.
-
-    Args:
-        station: QCoDeS station that contains a R&S ZNB VNA instrument
-        fstart (Hz): starting frequency of VNA sweep
-        fstop (Hz): final frequency of VNA sweep
-        fstep (Hz): step size of VNA sweep
-        chan: name of VNA channel to be used
-        bw (Hz): VNA bandwidth
-        navgs: number of averages per measurement
-        navgs: number of averages per measurement
-        pwr (dBm): VNA power
-        electrical_delay (s): electrical delay used by the VNA
-
-    """
-
-    vna_trace = getattr(station.vna.channels, chan)
-    try: 
-        vna_trace.setup_lin_sweep() #gets you out of CW in Jaap's new ZNB class
-    except:
-        pass
-        
-    if navgs is None:
-        navgs = vna_trace.avg()
-    if bw is None:
-        bw = vna_trace.bandwidth()
-    if pwr is None:
-        pwr = vna_trace.power()
-    if electrical_delay is None:
-        electrical_delay = vna_trace.electrical_delay()
-
-    vna_trace.start(int(fstart))
-    vna_trace.stop(int(fstop))
-    vna_trace.npts(int((fstop - fstart) / fstep))
-    vna_trace.bandwidth(bw)
-    vna_trace.power(pwr)
-    vna_trace.avg(navgs)
-    vna_trace.electrical_delay()
-
-
 @MakeMeasurementFunction(
     [
         DataParameter("frequency", "Hz", "array", True),
@@ -90,20 +37,89 @@ def return_vna_trace(d):
 
     return [freqs, vna_data[0], vna_data[1]]
 
-def transmission_vs_frequency_explicit(center, span, suffix=None):
-    """Pysweep VNA measurement function that returns an S21 trace given the currently
-    set VNA parameters for a given center frequency a given span and a given suffix.
-    This can be useful when one wants to measure the response of several resonances
-    versus a single parameter.
+
+def setup_linear_sweep(
+    station,
+    fstart=None,
+    fstop=None,
+    fstep=None,
+    npts=None,
+    center=None,
+    span=None,
+    chan="S21",
+    bw=None,
+    navgs=None,
+    pwr=None,
+    electrical_delay=None,
+):
+    """Function that sets up the VNA according to the specified parameters, leaving
+    other parameters intact. All parameters are optional, but one has to choose between span and center, or fstop and fstart. 
+    One also has to choose between npts or fstep. 
+    Assumes that a channel with name `chan` is already created.
 
     Args:
-        center (Hz): center frequency of VNA trace
+        station: QCoDeS station that contains a R&S ZNB VNA instrument
+        fstart (Hz): starting frequency of VNA sweep
+        fstop (Hz): final frequency of VNA sweep
+        fstep (Hz): step size of VNA sweep
+        npts (int): number of steps between fstart and fstop
+        center (Hz): center frequency of the trace of width span
+        span (Hz): span of the trace centered at center
+        chan: name of VNA channel to be used
+        bw (Hz): VNA bandwidth
+        navgs: number of averages per measurement
+        pwr (dBm): VNA power
+        electrical_delay (s): electrical delay used by the VNA
+
+    """
+
+    vna_trace = getattr(station.vna.channels, chan)
+    try:
+        vna_trace.setup_lin_sweep()  # gets you out of CW in Jaap's new ZNB class, can remove try when it is in main qcodes
+    except:
+        pass
+
+    if span is not None and center is not None:
+        fstart = center - span / 2
+        fstop = center + span / 2
+    if fstart is None:
+        fstart = station.vna.S21.start()
+    if fstop is None:
+        fstop = station.vna.S21.stop()
+    if npts is None and fstep is not None:
+        npts = int((fstop - fstart) / fstep)
+    if navgs is None:
+        navgs = vna_trace.avg()
+    if bw is None:
+        bw = vna_trace.bandwidth()
+    if pwr is None:
+        pwr = vna_trace.power()
+    if electrical_delay is None:
+        electrical_delay = vna_trace.electrical_delay()
+
+    vna_trace.start(int(fstart))
+    vna_trace.stop(int(fstop))
+    vna_trace.npts(int((fstop - fstart) / fstep))
+    vna_trace.bandwidth(bw)
+    vna_trace.power(pwr)
+    vna_trace.avg(navgs)
+    vna_trace.electrical_delay()
+
+
+def transmission_vs_frequency(suffix='', setup_vna=False, **kwargs):
+    """Pysweep VNA measurement function that returns an S21 trace, either given the currently
+    set VNA parameters or for a custom set when setup_vna=true. 
+    By setting suffix one can measure the response of several resonances
+    versus a parameter simultaneously.
+
+    Args:
         suffix (int): index of measurement function
+        setup_vna (boolean): whether to use the current VNA settings or pass new ones via kwargs.
+        kwargs: see `setup_linear_sweep`.
 
 
     Returns:
     Pysweep measurement function
-
     """
 
     @MakeMeasurementFunction(
@@ -112,38 +128,42 @@ def transmission_vs_frequency_explicit(center, span, suffix=None):
                 name="frequency" + str(suffix),
                 unit="Hz",
                 paramtype="array",
-                # yes independent, but pysweep will not recognize it as such
                 independent=2,
             ),
             DataParameter(
                 name="amplitude" + str(suffix),
                 unit="",
                 paramtype="array",
-                # explicitely tell that this parameter depends on
-                # the corresponding frequency parameter
                 extra_dependencies=["frequency" + str(suffix)],
             ),
             DataParameter(
                 name="phase" + str(suffix),
                 unit="rad",
                 paramtype="array",
-                # explicitely tell that this parameter depends on
-                # the corresponding frequency parameter
                 extra_dependencies=["frequency" + str(suffix)],
             ),
         ]
     )
     def transmission_vs_frequency_measurement_function(d):
         station = d["STATION"]
-        station.vna.S21.center(center)
-        station.vna.S21.span(span)
+        if setup_vna:
+            setup_linear_sweep(station=station, **kwargs)
         return return_vna_trace(d)
 
-    # return a measurement function
     return transmission_vs_frequency_measurement_function
 
-
-def multiple_meas_functions(freq_list, span_list):
+def multiple_meas_functions(
+    fstart_list=None,
+    fstop_list=None,
+    fstep_list=None,
+    npts_list=None,
+    center_list=None,
+    span_list=None,
+    bw_list=None,
+    navgs_list=None,
+    pwr_list=None,
+    electrical_delay_list=None,
+):
     """Combines several measurement functions into one, allowing for measuring N
     resonances using a single measurement function.
 
@@ -158,100 +178,37 @@ def multiple_meas_functions(freq_list, span_list):
 
     """
     fun_str = ""
-    for i, c in enumerate(freq_list):
-        s = span_list[i]
-        fun_str += "cvna.transmission_vs_frequency_explicit({}, {}, suffix={})+".format(
-            c, s, i
-        )
-    fun_str = fun_str[:-1]
-    return fun_str
 
-def transmission_vs_frequency_explicit_extended(fstart, fstop, fstep, bw=None, navgs=None, pwr=None, electrical_delay=None, suffix=None, chan="S21"):
-    """Pysweep VNA measurement function that returns an S21 trace given the currently
-    set VNA parameters for a given center frequency a given span and a given suffix.
-    This can be useful when one wants to measure the response of several resonances
-    versus a single parameter.
+    if fstart_list is not None:
+        main_list = fstart_list
+    elif center_list is not None:
+        main_list = center_list
 
-    Args:
-        center (Hz): center frequency of VNA trace
-        suffix (int): index of measurement function
-
-
-    Returns:
-    Pysweep measurement function
-
-    """
-
-    @MakeMeasurementFunction(
-        [
-            DataParameter(
-                name="frequency" + str(suffix),
-                unit="Hz",
-                paramtype="array",
-                # yes independent, but pysweep will not recognize it as such
-                independent=2,
-            ),
-            DataParameter(
-                name="amplitude" + str(suffix),
-                unit="",
-                paramtype="array",
-                # explicitely tell that this parameter depends on
-                # the corresponding frequency parameter
-                extra_dependencies=["frequency" + str(suffix)],
-            ),
-            DataParameter(
-                name="phase" + str(suffix),
-                unit="rad",
-                paramtype="array",
-                # explicitely tell that this parameter depends on
-                # the corresponding frequency parameter
-                extra_dependencies=["frequency" + str(suffix)],
-            ),
-        ]
-    )
-    def transmission_vs_frequency_measurement_function(d):
-        station = d["STATION"]
-        vna_trace = getattr(station.vna.channels, chan)
-        try: 
-            vna_trace.setup_lin_sweep() #gets you out of CW in Jaap's new ZNB class
-        except:
-            pass
-
-        vna_trace.start(int(fstart))
-        vna_trace.stop(int(fstop))
-        vna_trace.npts(int((fstop - fstart) / fstep))
-        if navgs is not None:
-            vna_trace.avg(navgs)
-        if bw is not None:
-            vna_trace.bandwidth(bw)
-        if pwr is not None:
-            vna_trace.power(pwr)
-        if electrical_delay is not None:
-            vna_trace.electrical_delay(electrical_delay)
-
-        return return_vna_trace(d)
-
-    # return a measurement function
-    return transmission_vs_frequency_measurement_function
-
-def multiple_meas_functions_extended(fstart_list, fstop_list, fstep_list, bw_list=None, navgs_list=None, pwr_list=None, electrical_delay_list=None,):
-    """Combines several measurement functions into one, allowing for measuring N
-    resonances using a single measurement function.
-
-    Should be renamed or made more general.
-    Args:
-        freq_list (Hz): list containing center frequencies
-        span_list (Hz): list containing spans
-
-
-    Returns:
-    Pysweep measurement function
-
-    """
-    fun_str = ""
-    for ii, fstart in enumerate(fstart_list):
-        fstop = fstop_list[ii]
-        fstep = fstep_list[ii]
+    for ii in range(len(main_list)):
+        if fstart_list is not None:
+            fstart = fstart_list[ii]
+        else:
+            fstart=None
+        if fstop_list is not None:
+            fstop = fstop_list[ii]
+        else: 
+            fstop = None
+        if fstep_list is not None:
+            fstep = fstep_list[ii]
+        else:
+            fstep = None
+        if npts_list is not None:
+            npts = npts_list[ii]
+        else:
+            npts = None
+        if center_list is not None:
+            center = center_list[ii]
+        else:
+            center = None
+        if span_list is not None:
+            span = span_list[ii]
+        else:
+            span = None
         if bw_list is not None:
             bw = bw_list[ii]
         else:
@@ -266,17 +223,17 @@ def multiple_meas_functions_extended(fstart_list, fstop_list, fstep_list, bw_lis
             pwr = None
         if electrical_delay_list is not None:
             delay = electrical_delay_list[ii]
-        else: 
+        else:
             delay = None
 
-        fun_str += "cvna.transmission_vs_frequency_explicit_extended(fstart={}, fstop={}, fstep={}, bw={}, navgs={}, pwr={}, electrical_delay={}, suffix={})+".format(
-            fstart, fstop, fstep, bw, navgs, pwr, delay, ii
+        fun_str += "cvna.transmission_vs_frequency(suffix={}, setup_vna=True, fstart={}, fstop={}, fstep={}, npts={}, center={}, span={}, bw={}, navgs={}, pwr={}, electrical_delay={})+".format(
+            fstart, fstop, fstep, npts, center, span, bw, navgs, pwr, delay, ii
         )
     fun_str = fun_str[:-1]
     return fun_str
 
 
-def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
+def measure_resonance_estimate(f0, fspan, fstep, res_finder, save_trace=False, suffix='', **kwargs):
     """Pysweep VNA measurement function that measures an estimated resonance
     frequency.
 
@@ -286,7 +243,7 @@ def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
     fspan (Hz): Span around f0 to measure.
     fstep (Hz): Frequency step size.
     res finder: Function that finds a resonance from VNA output. WIP.
-    kwargs: see `setup_frq_sweep`.
+    kwargs: see `setup_linear_sweep`.
 
     Returns:
     Pysweep measurement function
@@ -296,30 +253,66 @@ def measure_resonance_estimate(f0, fspan, fstep, res_finder, **kwargs):
 
     """
 
-    @MakeMeasurementFunction([DataParameter(name="resonance_frequency", unit="Hz")])
-    def resonance_estimate_measurement_function(d):
-        if "f0" not in d:
-            d["f0"] = f0
-        station = d["STATION"]
-        setup_frq_sweep(
-            station=station,
-            fstart=d["f0"] - fspan / 2,
-            fstop=d["f0"] + fspan / 2,
-            fstep=fstep,
-            **kwargs
+    if save_trace==False:
+
+        @MakeMeasurementFunction([DataParameter(name="resonance_frequency", unit="Hz")])
+        def resonance_estimate_measurement_function(d):
+            if "f0" not in d:
+                d["f0"] = f0
+            station = d["STATION"]
+            setup_linear_sweep(
+                station=station,
+                fstart=d["f0"] - fspan / 2,
+                fstop=d["f0"] + fspan / 2,
+                fstep=fstep,
+                **kwargs
+            )
+            cal = return_vna_trace(d)
+            m0 = res_finder(cal[0], 20 * np.log10(cal[1]))
+            if m0 == None:
+                raise Exception(
+                    "Failed to find a resonance."
+                )  # needs work, can implement alternative strategies
+            d["f0"] = m0
+            return [m0]
+    else:
+        
+        @MakeMeasurementFunction(
+            [
+                DataParameter(
+                    name="frequency" + str(suffix),
+                    unit="Hz",
+                    paramtype="array",
+                    independent=2,
+                ),
+                DataParameter(
+                    name="amplitude" + str(suffix),
+                    unit="",
+                    paramtype="array",
+                    extra_dependencies=["frequency" + str(suffix)],
+                ),
+                DataParameter(
+                    name="phase" + str(suffix),
+                    unit="rad",
+                    paramtype="array",
+                    extra_dependencies=["frequency" + str(suffix)],
+                ),
+            ]
         )
-        # try:
-        #     station.qubsrc.off()
-        # except:
-        #     pass
-        cal = return_vna_trace(d)
-        m0 = res_finder(cal[0], 20 * np.log10(cal[1]))
-        if m0 == None:
-            raise Exception(
-                "Failed to find a resonance."
-            )  # needs work, can implement alternative strategies
-        d["f0"] = m0
-        return [m0]
+        def resonance_estimate_measurement_function(d):
+            if "f0" not in d:
+                d["f0"] = f0
+            station = d["STATION"]
+
+            mmt_fun = transmission_vs_frequency(suffix=suffix, setup_vna=True, fstart=d["f0"] - fspan / 2, fstop=d["f0"] + fspan / 2, fstep=fstep, **kwargs)
+            cal = mmt_fun(d)
+            m0 = res_finder(cal[0], 20 * np.log10(cal[1]))
+            if m0 == None:
+                raise Exception(
+                    "Failed to find a resonance."
+                )  # needs work, can implement alternative strategies
+            d["f0"] = m0
+            return [cal, m0]
 
     return resonance_estimate_measurement_function
 
@@ -354,7 +347,7 @@ def measure_S21_adaptive(f0, fspan, fstep, **kwargs):
 
         if "f0" not in d:
             d["f0"] = f0
-        setup_frq_sweep(
+        setup_linear_sweep(
             station=station,
             fstart=d["f0"] - fspan / 2,
             fstop=d["f0"] + fspan / 2,
@@ -366,14 +359,9 @@ def measure_S21_adaptive(f0, fspan, fstep, **kwargs):
 
     return adaptive_measurement_function
 
-def setup_frq_sweep_CW(
-    station,
-    cw_frequency,
-    npts,
-    chan="S21",
-    bw=None,
-    pwr=None,
-    electrical_delay=None,
+
+def setup_CW_sweep(
+    station, cw_frequency=None, t_int=None, npts=None, chan="S21", bw=None, pwr=None, electrical_delay=None,
 ):
     """Function that sets up the VNA according to the specified parameters, leaving
     other parameters intact. Frequency parameters are required, others are optional.
@@ -381,12 +369,11 @@ def setup_frq_sweep_CW(
 
     Args:
         station: QCoDeS station that contains a R&S ZNB VNA instrument
-        fstart (Hz): starting frequency of VNA sweep
-        fstop (Hz): final frequency of VNA sweep
-        fstep (Hz): step size of VNA sweep
+        cw_frequency (Hz): frequency at which the CW sweep is performed
+        npts (int): number of points in the CW sweep. Between 1 and 1e5 (or 1e6?)
+        t_int (s): total time the measurement takes (npts/bw)
         chan: name of VNA channel to be used
         bw (Hz): VNA bandwidth
-        navgs: number of averages per measurement
         navgs: number of averages per measurement
         pwr (dBm): VNA power
         electrical_delay (s): electrical delay used by the VNA
@@ -394,13 +381,20 @@ def setup_frq_sweep_CW(
     """
 
     vna_trace = getattr(station.vna.channels, chan)
-    try: 
-        vna_trace.setup_cw_sweep() #gets you into CW in Jaap's new ZNB class
+    try:
+        vna_trace.setup_cw_sweep()  # gets you into CW in Jaap's new ZNB class
     except:
         print("CW Mode does not exist in this qcodes version")
 
+
+    if cw_frequency is None:
+        cw_frequency = vna_trace.cw_frequency()
     if bw is None:
         bw = vna_trace.bandwidth()
+    if npts is None and bw is not None:
+        npts = int(np.round(t_int*bw))
+    elif npts is None:
+        npts = vna_trace.npts()
     if pwr is None:
         pwr = vna_trace.power()
     if electrical_delay is None:
@@ -411,6 +405,7 @@ def setup_frq_sweep_CW(
     vna_trace.bandwidth(bw)
     vna_trace.power(pwr)
     vna_trace.electrical_delay()
+
 
 @MakeMeasurementFunction(
     [
@@ -430,7 +425,7 @@ def return_vna_trace_CW(d):
     bw = station.vna.S21.bandwidth()
     sweep_time = station.vna.S21.sweep_time()
     npts = station.vna.S21.npts()
-    times = np.linspace(1/bw, sweep_time, npts)
+    times = np.linspace(1 / bw, sweep_time, npts)
 
     if not station.vna.rf_power():
         station.vna.rf_on()
@@ -438,6 +433,8 @@ def return_vna_trace_CW(d):
     vna_data = station.vna.S21.trace_fixed_frequency()
 
     return [times, vna_data[0], vna_data[1]]
+<<<<<<< HEAD
+=======
     
 def measure_SNR_two_frequencies(f0, f1):
     @MakeMeasurementFunction([DataParameter(name='signal_0', unit='dB'), 
@@ -473,10 +470,16 @@ def measure_SNR_two_frequencies(f0, f1):
         return [20*np.log10(lin_mean_f0), 20*np.log10(lin_mean_f1), 20*np.log10(lin_mean_f0/lin_mean_f1)]
     return return_SNR_CW
 
+>>>>>>> b06519c1af4adf906e25415c10381d3428bf3237
 
-@MakeMeasurementFunction([DataParameter(name='signal', unit='dB'), 
-                          DataParameter(name='noise', unit='dB'), 
-                          DataParameter(name='SNR', unit='dB')])
+
+@MakeMeasurementFunction(
+    [
+        DataParameter(name="signal", unit="dB"),
+        DataParameter(name="noise", unit="dB"),
+        DataParameter(name="SNR", unit="dB"),
+    ]
+)
 def return_SNR_CW(d):
     """Pysweep VNA measurement function that returns ..
 
@@ -492,14 +495,25 @@ def return_SNR_CW(d):
     vna_data = station.vna.S21.trace_fixed_frequency()
     I = vna_data[0]
     Q = vna_data[1]
-    S = I + 1j*Q
+    S = I + 1j * Q
     lin_mean = np.abs(S.mean())
     lin_std = np.abs(S.std())
-    
-    return [20*np.log10(lin_mean), 20*np.log10(lin_std), 20*np.log10(lin_mean/lin_std)]
+
+    return [
+        20 * np.log10(lin_mean),
+        20 * np.log10(lin_std),
+        20 * np.log10(lin_mean / lin_std),
+    ]
 
 
-def measure_PSD_averaged(f0, bandwidth, points, averages, **kwargs):
+def measure_PSD_averaged(f0, bandwidth, averages, t_int=None, points=None, **kwargs):
+"""Pysweep VNA measurement function that returns .... Work in progress!
+    Uses a moving average to save time! Provide t_int or points, not neither and not both
+
+        Returns:
+            VNA ..
+
+        """ 
     @MakeMeasurementFunction(
         [
             DataParameter("Frequency", "Hz", "array", True),
@@ -518,7 +532,9 @@ def measure_PSD_averaged(f0, bandwidth, points, averages, **kwargs):
 
         if not station.vna.rf_power():
             station.vna.rf_on()
-        setup_frq_sweep_CW(station=station, cw_frequency=f0, npts=points, bw=bandwidth, **kwargs)
+        setup_CW_sweep(
+            station=station, cw_frequency=f0, npts=points, t_int=t_int, bw=bandwidth, **kwargs
+        )
 
         for ii in range(averages):
             vna_data = station.vna.S21.trace_fixed_frequency()
@@ -528,33 +544,36 @@ def measure_PSD_averaged(f0, bandwidth, points, averages, **kwargs):
             bw = station.vna.S21.bandwidth()
             sweep_time = station.vna.S21.sweep_time()
             npts = station.vna.S21.npts()
-            times = np.linspace(1/bw, sweep_time, npts)
+            times = np.linspace(1 / bw, sweep_time, npts)
 
             n = times.size
             step = np.diff(times)[0]
             fftfreq = np.fft.fftfreq(n, d=step)
-            fft_Q = np.abs(np.fft.fft(Q-np.mean(Q)))**2
-            fft_I = np.abs(np.fft.fft(I-np.mean(I)))**2
+            fft_Q = np.abs(np.fft.fft(Q - np.mean(Q))) ** 2
+            fft_I = np.abs(np.fft.fft(I - np.mean(I))) ** 2
             if ii == 0:
                 fft_Q_array = fft_Q
                 fft_I_array = fft_I
             else:
-                fft_Q_array = (fft_Q_array*(ii)+fft_Q)/(ii+1)
-                fft_I_array = (fft_I_array*(ii)+fft_I)/(ii+1)
+                fft_Q_array = (fft_Q_array * (ii) + fft_Q) / (ii + 1)
+                fft_I_array = (fft_I_array * (ii) + fft_I) / (ii + 1)
 
         return [fftfreq, fft_Q_array, fft_I_array]
-                
+
     return return_PSD_CW
 
 
-@MakeMeasurementFunction([DataParameter(name='amplitude', unit=''), 
-                          DataParameter(name='phase', unit='rad')])
+@MakeMeasurementFunction(
+    [DataParameter(name="amplitude", unit=""), DataParameter(name="phase", unit="rad")]
+)
 def return_vna_point_CW(d):
     station = d["STATION"]
     return list(station.vna.S21.point_fixed_frequency_mag_phase())
 
 
-def measure_CW_optimized(cw_frequency, suffix='', qubsrc_power=None, ignore_dict=False, **kwargs):
+def measure_CW_optimized(
+    cw_frequency, suffix="", qubsrc_power=None, ignore_dict=False, **kwargs
+):
     """Pysweep VNA measurement function that measures in CW at frequency
     cw_frequency.
 
@@ -562,7 +581,7 @@ def measure_CW_optimized(cw_frequency, suffix='', qubsrc_power=None, ignore_dict
     This is helpful when measuring versus parameters that change the resonance frequency
 
     Args:
-    cw_frequency (Hz): Frequency at which to measure. Ignored if there is already an f0 in d['f0'].
+    cw_frequency (Hz): Frequency at which to measure. Ignored if there is already an f0 in d['f0'], except if ignore_dict=True.
     qubsrc_power (dBm): power of a qubsrc in the station. Hardcoded, should be more subtle.
     ignore_dict (boolean): if true, cw_frequency is taken only from the input, not from the dictionary. 
     Useful when doing multiple CW measurements at different frequencies in the same measurement. But not very clever.
@@ -575,8 +594,8 @@ def measure_CW_optimized(cw_frequency, suffix='', qubsrc_power=None, ignore_dict
 
     @MakeMeasurementFunction(
         [
-            DataParameter("amplitude"+suffix, "", "array"),
-            DataParameter("phase"+suffix, "rad", "array"),
+            DataParameter("amplitude" + suffix, "", "array"),
+            DataParameter("phase" + suffix, "rad", "array"),
         ]
     )
     def cw_measurement_function(d):
@@ -587,17 +606,9 @@ def measure_CW_optimized(cw_frequency, suffix='', qubsrc_power=None, ignore_dict
         if ignore_dict == False:
             if "f0" not in d:
                 d["f0"] = cw_frequency
-            setup_frq_sweep_CW(
-                station=station,
-                cw_frequency=d["f0"],
-                **kwargs
-            )
+            setup_CW_sweep(station=station, cw_frequency=d["f0"], **kwargs)
         else:
-            setup_frq_sweep_CW(
-                station=station,
-                cw_frequency=cw_frequency,
-                **kwargs
-            )
+            setup_CW_sweep(station=station, cw_frequency=cw_frequency, **kwargs)
         data = return_vna_point_CW(d)
         if qubsrc_power != None:
             station.qubsrc.output_rf('OFF') #its good for it to be off when you measure the resonator
@@ -605,5 +616,3 @@ def measure_CW_optimized(cw_frequency, suffix='', qubsrc_power=None, ignore_dict
         return [data[0], data[1]]
 
     return cw_measurement_function
-
-

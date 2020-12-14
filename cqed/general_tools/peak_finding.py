@@ -4,7 +4,7 @@
 """
 A set of functions used to find minima in (potentially noisy) data.
 
-Would be good to identify some other options, but ultimately it will depend on the quality of the data.
+Would be good to identify some other options, but ultimately it will depend on the quality of the data and is thus a bit user dependent.
 """
 
 import numpy as np

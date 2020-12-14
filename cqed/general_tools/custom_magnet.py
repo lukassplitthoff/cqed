@@ -24,10 +24,10 @@ class CustomDummy(Instrument):
             set_cmd=self._set_target,
         )
 
-        self._field_target = 0.
+        self._field_target = 0.0
 
     def _get_field(self):
-        return 0.
+        return 0.0
 
     def _get_target(self):
         return self._field_target
@@ -38,9 +38,10 @@ class CustomDummy(Instrument):
     def ramp_to_target(self):
         sleep(0.1)
 
+
 class CustomGS210(Instrument):
     """Meta instrument that wraps the Yokogawa GS210 to allow setting fields
-    rather than currents.
+    rather than currents. Also works for GS610!
 
     The parameter structure follows that of the mercuryIPS for easy integration, 
     but perhaps we can/should generalize this somehow. Need to have a look at the 
@@ -93,7 +94,9 @@ class CustomGS210(Instrument):
             self.source.source_mode("CURR")
         self.source.output("on")
         self.source.ramp_current(
-            ramp_to=self.field_target()*self.coil_constant, step=self.step, delay=self.delay
+            ramp_to=self.field_target() * self.coil_constant,
+            step=self.step,
+            delay=self.delay,
         )
 
 
@@ -112,7 +115,7 @@ class CustomE36313A(Instrument):
 
         self.source = instrument
         self.coil_constant = coil_constant  # A/T
-        assert step >= 6e-4 #resolution of the source
+        assert step >= 6e-4  # resolution of the source
         self.step = step
         self.delay = delay
 
@@ -142,24 +145,30 @@ class CustomE36313A(Instrument):
         return self._field_target
 
     def _set_target(self, val):
-        assert 10/self.coil_constant > val >= 1e-3/self.coil_constant #ranges of the source
+        assert (
+            10 / self.coil_constant > val >= 1e-3 / self.coil_constant
+        )  # ranges of the source
         self._field_target = val
 
     def ramp_to_target(self):
-        #this should be implemented on the driver level! Make a fork and pull request to qcodes_drivers_contrib?
+        # this should be implemented on the driver level! Make a fork and pull request to qcodes_drivers_contrib?
         self.source.ch1.enable("on")
-        resolution = 6e-4/self.coil_constant #resolution of the source, which is quite coarse so we hardcode it to avoid weirdness
-        step_sign = np.sign(self.field_target()-self.field())
+        resolution = (
+            6e-4 / self.coil_constant
+        )  # resolution of the source, which is quite coarse so we hardcode it to avoid weirdness
+        step_sign = np.sign(self.field_target() - self.field())
         try:
-            field_values = np.append(np.arange(self.field(), self.field_target(), step_sign*self.step), self.field_target())
+            field_values = np.append(
+                np.arange(self.field(), self.field_target(), step_sign * self.step),
+                self.field_target(),
+            )
             field_values = resolution * np.round(field_values / resolution)
             for val in field_values:
-                self.source.ch1.source_current(val*self.coil_constant)
+                self.source.ch1.source_current(val * self.coil_constant)
                 sleep(self.delay)
         except:
             pass
-            #hacky workaround for when your higher level sweep function starts from the current setpoint
-
+            # hacky workaround for when your higher level sweep function starts from the current setpoint
 
 
 class CustomMagnet(Instrument):
@@ -220,7 +229,7 @@ class CustomMagnet(Instrument):
             set_cmd=self.z_source.field_target,
         )
 
-    def ramp(self, mode='safe'):
+    def ramp(self, mode="safe"):
         """Ramp the fields to their present target value. Mode is always 'safe' for
         now. Did not implement the others.
 
@@ -235,18 +244,15 @@ class CustomMagnet(Instrument):
 
         for slave in np.array(["x", "y", "z"])[order]:
             eval(f"self.{slave}_source.ramp_to_target()")
-            try: #these try statements are a bit hacky; the oxfordIPS has a ramp status while it is ramping, the AMI/Keysight don't seem to have one, so I just implement it like this
+            try:  # these try statements are a bit hacky; the oxfordIPS has a ramp status while it is ramping, the AMI/Keysight/Yoko don't seem to have one, so I just implement it like this
                 while eval(f"self.{slave}_source.ramp_status()") == "TO SET":
                     sleep(0.1)
             except:
                 pass
         self._update_field()
 
-
     def x_ramp(self):
-        #need to look up syntax in oxford IPS
-        meas_vals = self._get_measured()
-        targ_vals = self._get_targets()
+        # need to look up syntax in oxford IPS
         self.x_source.ramp_to_target()
         try:
             while self.x_source.ramp_status() == "TO SET":
@@ -256,8 +262,6 @@ class CustomMagnet(Instrument):
         self._update_field()
 
     def y_ramp(self):
-        meas_vals = self._get_measured()
-        targ_vals = self._get_targets()
         self.y_source.ramp_to_target()
         try:
             while self.y_source.ramp_status() == "TO SET":
@@ -267,15 +271,13 @@ class CustomMagnet(Instrument):
         self._update_field()
 
     def z_ramp(self):
-        meas_vals = self._get_measured()
-        targ_vals = self._get_targets()
         self.z_source.ramp_to_target()
         try:
             while self.z_source.ramp_status() == "TO SET":
                 sleep(0.1)
         except:
             pass
-        self._update_field()   
+        self._update_field()
 
     def _get_measured(self):
         field_components = []
