@@ -218,3 +218,4 @@ class QPTriggerSequence(BroadBeanSequence):
             #self.awg.set_sqel_event_jump_type(2, 'INDEX')
             #self.awg.set_sqel_event_target_index(2, 1)
             self.awg.set_sqel_loopcnt(ncycles, 2)
+            
