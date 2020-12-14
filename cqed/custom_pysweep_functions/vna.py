@@ -433,6 +433,44 @@ def return_vna_trace_CW(d):
     vna_data = station.vna.S21.trace_fixed_frequency()
 
     return [times, vna_data[0], vna_data[1]]
+<<<<<<< HEAD
+=======
+    
+def measure_SNR_two_frequencies(f0, f1):
+    @MakeMeasurementFunction([DataParameter(name='signal_0', unit='dB'), 
+                            DataParameter(name='signal_1', unit='dB'), 
+                            DataParameter(name='SNR', unit='dB')])
+    def return_SNR_CW(d):
+        """Pysweep VNA measurement function that returns ..
+
+        Returns:
+            VNA ..
+
+        """
+        station = d["STATION"]
+        station.vna.S21.cw_frequency(f0)
+
+        if not station.vna.rf_power():
+            station.vna.rf_on()
+
+        vna_data = station.vna.S21.trace_fixed_frequency()
+        I = vna_data[0]
+        Q = vna_data[1]
+        S = I + 1j*Q
+        lin_mean_f0 = np.abs(S.mean())
+
+        station.vna.S21.cw_frequency(f1)
+
+        vna_data = station.vna.S21.trace_fixed_frequency()
+        I = vna_data[0]
+        Q = vna_data[1]
+        S = I + 1j*Q
+        lin_mean_f1 = np.abs(S.mean())
+        
+        return [20*np.log10(lin_mean_f0), 20*np.log10(lin_mean_f1), 20*np.log10(lin_mean_f0/lin_mean_f1)]
+    return return_SNR_CW
+
+>>>>>>> b06519c1af4adf906e25415c10381d3428bf3237
 
 
 @MakeMeasurementFunction(
@@ -564,6 +602,7 @@ def measure_CW_optimized(
         station = d["STATION"]
         if qubsrc_power != None:
             station.qubsrc.power(qubsrc_power)
+            station.qubsrc.output_rf('ON')
         if ignore_dict == False:
             if "f0" not in d:
                 d["f0"] = cw_frequency
@@ -571,6 +610,9 @@ def measure_CW_optimized(
         else:
             setup_CW_sweep(station=station, cw_frequency=cw_frequency, **kwargs)
         data = return_vna_point_CW(d)
+        if qubsrc_power != None:
+            station.qubsrc.output_rf('OFF') #its good for it to be off when you measure the resonator
+
         return [data[0], data[1]]
 
     return cw_measurement_function

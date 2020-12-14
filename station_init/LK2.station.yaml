@@ -71,7 +71,7 @@ instruments:
     address: TCPIP0::192.168.6.68
     enable_forced_reconnect: true     
 
-  FG:
+  fg:
     type: qcodes.instrument_drivers.rigol.DG1062.DG1062
     address: TCPIP0::192.168.6.165
     enable_forced_reconnect: true

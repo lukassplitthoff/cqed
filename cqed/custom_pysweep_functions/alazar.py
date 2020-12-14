@@ -7,7 +7,13 @@ from pysweep.databackends.base import DataParameter
 import numpy as np
 from pytopo.rf.alazar.softsweep import setup_triggered_softsweep
 from pytopo.rf.alazar.awg_sequences import TriggerSequence
+import cqed.awg_sequences
 import qcodes
+from cqed.awg_sequences.awg_sequences import RabiSequence, RamseySequence, T1Sequence, EchoSequence, QPTriggerSequence
+import time
+from pathlib import Path
+import lmfit
+import cqed.general_tools.data_processing as dp
 
 def setup_single_averaged_IQpoint(controller, time_bin, integration_time, setup_awg=True,
                                   post_integration_delay=10e-6,
@@ -32,8 +38,9 @@ def setup_single_averaged_IQpoint(controller, time_bin, integration_time, setup_
 
     ctl = controller
     ctl.buffers_per_block(None)
-    ctl.average_buffers(True)
-
+    ctl.average_buffers(None)
+    ctl.average_buffers_postdemod(True)
+    
     ctl.setup_acquisition(samples=int((time_bin-post_integration_delay) * alazar.sample_rate() // 128 * 128),
                           records=1, buffers=navgs, allocated_buffers=allocated_buffers, verbose=verbose)
 
@@ -144,3 +151,272 @@ def measure_resonance_estimate(controller, sweep_param, sweep_vals, integration_
         return [m0]
 
     return resonance_estimate_measurement_function
+
+def setup_time_rabi(controller, pulse_times, readout_time, 
+                              navgs=500, acq_time=2.56e-6, setup_awg=True):
+    """
+    Set up ...
+    """
+    
+    station = qcodes.Station.default
+    
+    # setting up the AWG
+    if setup_awg:
+        seq = RabiSequence(station.awg, SR=1e9)
+        seq.wait = 'all'
+        seq.setup_awg(pulse_times=pulse_times, readout_time=readout_time, cycle_time=20e-6, start_awg=True)
+        
+    controller.verbose = True
+    controller.average_buffers(False)
+    controller.average_buffers_postdemod(True)  
+    controller.setup_acquisition(samples=None, records=pulse_times.size, buffers=navgs, acq_time=acq_time, verbose=False)
+
+def measure_time_rabi(controller, pulse_times, readout_time,  
+                              navgs=500, acq_time=2.56e-6, setup_awg=True, fit_pipulse=False, **kw):
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("pulse_time", "s", "array", True),
+            DataParameter("amplitude", "V", "array"),
+            DataParameter("phase", "rad", "array"),
+        ]
+    )
+    def return_alazar_trace(d):
+
+        setup_time_rabi(controller, pulse_times, readout_time, navgs=navgs, acq_time=acq_time,
+                                  setup_awg=setup_awg, **kw)      
+
+        times = pulse_times
+        station = d["STATION"]
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        station.awg.start()
+        data = np.squeeze(controller.acquisition())[..., 0]
+        mag, phase = np.abs(data), np.angle(data, deg=False)
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        time.sleep(0.1)
+
+        if fit_pipulse:
+
+            #rotate IQ data
+            angle = dp.IQangle(mag*np.exp(1.j*phase))
+            rotated_data = dp.IQrotate(mag*np.exp(1.j*phase), angle)
+
+            #fit Rabi; still needs work because it can be off by a factor of pi in the phase depending on the sign of the first value!
+            mod = lmfit.models.ExpressionModel('off + amp * exp(-x/t1)*sin(2*pi/period*(x + phase))')
+            xdat = times
+            ydat = np.real(rotated_data)
+            params = mod.make_params(off=ydat[-1], amp=ydat[0], t1=1e-6, period=100e-9, phase=0)
+            params['t1'].set(min=1e-9)
+            out = mod.fit(ydat, params, x=xdat)
+            pipulse_time = out.params['period'].value/4  - out.params['phase'].value
+
+            d['pipulse'] = pipulse_time
+
+        return [times, mag, phase]
+    return return_alazar_trace
+
+def setup_ramsey(controller, delays, pulse_time, readout_time, 
+                              navgs=500, acq_time=2.56e-6, setup_awg=True):
+    """
+    Set up ...
+    """
+    
+    station = qcodes.Station.default
+    
+    # setting up the AWG
+    if setup_awg:
+        seq = RamseySequence(station.awg, SR=1e9)
+        seq.wait = 'all'
+        seq.setup_awg(delays = delays, pulse_time=pulse_time, readout_time=readout_time, cycle_time = 20e-6, start_awg=True)
+        
+    controller.verbose = True
+    controller.average_buffers(False)
+    controller.average_buffers_postdemod(True)  
+    controller.setup_acquisition(samples=None, records=delays.size, buffers=navgs, acq_time=acq_time, verbose=False)
+
+def measure_ramsey(controller, delays, pulse_time, readout_time,  
+                              navgs=500, acq_time=2.56e-6, setup_awg=True, **kw):
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("delay", "s", "array", True),
+            DataParameter("amplitude", "V", "array"),
+            DataParameter("phase", "rad", "array"),
+        ]
+    )
+    def return_alazar_trace(d):
+
+        setup_ramsey(controller, delays, pulse_time, readout_time, navgs=navgs, acq_time=acq_time,
+                                  setup_awg=setup_awg, **kw)      
+
+        times = delays
+        station = d["STATION"]
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        station.awg.start()
+        data = np.squeeze(controller.acquisition())[..., 0]
+        mag, phase = np.abs(data), np.angle(data, deg=False)
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        time.sleep(0.1)
+
+        #it is unclear which combination of off and stop and sleep is required
+        #but without them the timing goes wrong
+
+        return [times, mag, phase]
+    return return_alazar_trace
+
+
+def setup_T1(controller, delays, pulse_time, readout_time, 
+                              navgs=500, acq_time=2.56e-6, setup_awg=True):
+    """
+    Set up ...
+    """
+    
+    station = qcodes.Station.default
+    
+    # setting up the AWG
+    if setup_awg:
+        seq = T1Sequence(station.awg, SR=1e9)
+        seq.wait = 'all'
+        # if 
+        #     seq.setup_awg(delays = delays, pulse_time=pulse_time, readout_time=readout_time, cycle_time = 20e-6, start_awg=True)
+        # else:
+        seq.setup_awg(delays = delays, pulse_time=pulse_time, readout_time=readout_time, cycle_time = 20e-6, start_awg=True)
+        
+    controller.verbose = True
+    controller.average_buffers(False)
+    controller.average_buffers_postdemod(True)  
+    controller.setup_acquisition(samples=None, records=delays.size, buffers=navgs, acq_time=acq_time, verbose=False)
+
+def measure_T1(controller, delays, pulse_time, readout_time,  
+                              navgs=500, acq_time=2.56e-6, setup_awg=True, **kw):
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("delay", "s", "array", True),
+            DataParameter("amplitude", "V", "array"),
+            DataParameter("phase", "rad", "array"),
+        ]
+    )
+    def return_alazar_trace(d):
+
+        setup_T1(controller, delays, pulse_time, readout_time, navgs=navgs, acq_time=acq_time,
+                                  setup_awg=setup_awg, **kw)      
+
+        times = delays
+        station = d["STATION"]
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        station.awg.start()
+        data = np.squeeze(controller.acquisition())[..., 0]
+        mag, phase = np.abs(data), np.angle(data, deg=False)
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        time.sleep(0.1)
+
+        #it is unclear which combination of off and stop and sleep is required
+        #but without them the timing goes wrong
+
+        return [times, mag, phase]
+    return return_alazar_trace
+
+
+def setup_echo(controller, delays, pulse_time, readout_time, 
+                              navgs=500, acq_time=2.56e-6, setup_awg=True):
+    """
+    Set up ...
+    """
+    
+    station = qcodes.Station.default
+    
+    # setting up the AWG
+    if setup_awg:
+        seq = EchoSequence(station.awg, SR=1e9)
+        seq.wait = 'all'
+        seq.setup_awg(delays = delays, pulse_time=pulse_time, readout_time=readout_time, cycle_time = 20e-6, start_awg=True)
+        
+    controller.verbose = True
+    controller.average_buffers(False)
+    controller.average_buffers_postdemod(True)  
+    controller.setup_acquisition(samples=None, records=delays.size, buffers=navgs, acq_time=acq_time, verbose=False)
+
+def measure_echo(controller, delays, pulse_time, readout_time,  
+                              navgs=500, acq_time=2.56e-6, setup_awg=True, **kw):
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("delay", "s", "array", True),
+            DataParameter("amplitude", "V", "array"),
+            DataParameter("phase", "rad", "array"),
+        ]
+    )
+    def return_alazar_trace(d):
+
+        setup_echo(controller, delays, pulse_time, readout_time, navgs=navgs, acq_time=acq_time,
+                                  setup_awg=setup_awg, **kw)      
+
+        times = delays
+        station = d["STATION"]
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        station.awg.start()
+        data = np.squeeze(controller.acquisition())[..., 0]
+        mag, phase = np.abs(data), np.angle(data, deg=False)
+        station.fg.ch1.state('OFF')
+        station.awg.stop()
+        time.sleep(0.1)
+
+        #it is unclear which combination of off and stop and sleep is required
+        #but without them the timing goes wrong
+
+        return [times, mag, phase]
+    return return_alazar_trace
+
+
+def setup_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True):
+    """
+    Set up ...
+    """
+
+    station = qcodes.Station.default
+
+    # setting up the AWG
+    if setup_awg:
+        seq = QPTriggerSequence(station.awg, SR=1e7)
+        seq.load_sequence(cycle_time=acq_time+1e-3, plot=False, use_event_seq = True, ncycles = navg)
+        
+    controller.verbose = True
+    controller.average_buffers(False)
+    controller.average_buffers_postdemod(False)  
+    station.alazar.sample_rate(int(SR))
+    npoints = int(acq_time*SR // 128 * 128)
+    controller.setup_acquisition(npoints, 1, navg)
+    print(controller, navg, acq_time, controller.demod_frq(), npoints)
+
+def measure_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True, **kw):
+
+    @MakeMeasurementFunction(
+        [
+            DataParameter("timestamp", "s", "array", False),
+        ]
+    )
+    def return_alazar_trace(d):
+
+        setup_QPP(controller, acq_time, navg, SR=SR, setup_awg=setup_awg, **kw)      
+
+        station = d["STATION"]
+        station.alazar.clear_buffers()
+        data = np.squeeze(controller.acquisition())[...,0]
+        time.sleep(0.1)
+
+        timestamp = int(time.time()*1e6)
+        datasaver_run_id = d["DATASAVER"].datasaver._dataset.run_id
+        data_folder_path = str(qcodes.config.core.db_location)[:-3]+"\\"
+        Path(data_folder_path).mkdir(parents=True, exist_ok=True)
+        np.save(data_folder_path+"ID_"+f"{datasaver_run_id}_IQ_{timestamp:d}",[controller.demod_tvals, data])
+
+        return [timestamp]
+    return return_alazar_trace
