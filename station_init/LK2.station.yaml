@@ -36,7 +36,7 @@ instruments:
 
   TWPA:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
-    address: TCPIP0::192.168.6.71
+    address: TCPIP0::192.168.6.70
     enable_forced_reconnect: true
 
   qubsrc:
