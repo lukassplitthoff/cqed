@@ -136,14 +136,14 @@ class Magnet:
                     0.0 <= phi <= 2 * 180.0
                 ), "The azimuth angle must be equal or larger than 0 and smaller or equal than 360. Change setting!"
 
-            else:
-                assert max_field_strength > np.abs(r) >= 0, (
-                    "The field amplitude must not exceed {} and be larger than 0."
-                    " Upper limit can be adjusted with kwarg: max_field_strength."
-                    " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
-                        max_field_strength
-                    )
+
+            assert max_field_strength > np.abs(r) >= 0, (
+                "The field amplitude must not exceed {} and be larger than 0."
+                " Upper limit can be adjusted with kwarg: max_field_strength."
+                " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
+                    max_field_strength
                 )
+            )
 
             x = r * np.sin(np.radians(theta)) * np.cos(np.radians(phi))
             y = r * np.sin(np.radians(theta)) * np.sin(np.radians(phi))
@@ -216,14 +216,14 @@ class Magnet:
                     0.0 <= phi <= 2 * 180.0
                 ), "The azimuth angle must be equal or larger than 0 and smaller or equal than 360. Change setting!"
 
-            else:
-                assert max_field_strength > np.abs(r) >= 0, (
-                    "The field amplitude must not exceed {} and be larger than 0."
-                    " Upper limit can be adjusted with kwarg: max_field_strength."
-                    " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
-                        max_field_strength
-                    )
+
+            assert max_field_strength > np.abs(r) >= 0, (
+                "The field amplitude must not exceed {} and be larger than 0."
+                " Upper limit can be adjusted with kwarg: max_field_strength."
+                " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
+                    max_field_strength
                 )
+            )
 
             x = r * np.sin(np.radians(theta)) * np.cos(np.radians(phi))
             y = r * np.sin(np.radians(theta)) * np.sin(np.radians(phi))
@@ -296,14 +296,14 @@ class Magnet:
                     0.0 <= phi <= 2 * 180.0
                 ), "The azimuth angle must be equal or larger than 0 and smaller or equal than 360. Change setting!"
 
-            else:
-                assert max_field_strength > np.abs(r) >= 0, (
-                    "The field amplitude must not exceed {} and be larger than 0."
-                    " Upper limit can be adjusted with kwarg: max_field_strength."
-                    " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
-                        max_field_strength
-                    )
+           
+            assert max_field_strength > np.abs(r) >= 0, (
+                "The field amplitude must not exceed {} and be larger than 0."
+                " Upper limit can be adjusted with kwarg: max_field_strength."
+                " Proceed with caution (Mu-metal shields do not appreciate high fields!)".format(
+                    max_field_strength
                 )
+            )
 
             x = r * np.sin(np.radians(theta)) * np.cos(np.radians(phi))
             y = r * np.sin(np.radians(theta)) * np.sin(np.radians(phi))
