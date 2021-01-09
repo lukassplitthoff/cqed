@@ -177,7 +177,7 @@ class QntmJumpTrace:
         if dbl_gauss_p0 is not None:
             self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, start_param_guess=dbl_gauss_p0)
         else:
-            elf.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real)
+            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real)
 
         self.raw_hist = self._create_hist(self.raw_data_rot.real, n_bins)
 
