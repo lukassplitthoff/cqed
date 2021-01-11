@@ -97,7 +97,7 @@ class QntmJumpTrace:
 
     def _fit_dbl_gaussian(self, data, n_bins=100, start_param_guess=None):
         """
-        Fittin a double gaussian.
+        Fitting a double gaussian.
         @param n_bins:
         @return:
         """
@@ -105,7 +105,7 @@ class QntmJumpTrace:
         I_ax, n = self._create_hist(data, n_bins)
 
         if start_param_guess is None:
-            p_start = [n[20], I_ax[10], I_ax[10] - I_ax[0], n[-20], I_ax[-10], I_ax[10] - I_ax[0]]
+            start_param_guess = [n[20], I_ax[10], I_ax[10] - I_ax[0], n[-20], I_ax[-10], I_ax[10] - I_ax[0]]
 
         fit, conv = curve_fit(self._dbl_gaussian, I_ax, n, p0=start_param_guess)
 
@@ -202,12 +202,28 @@ class QntmJumpTrace:
             self.hist_dwell_l = None
             self.hist_dwell_h = None
 
-        try:
-            self.rate_lh = curve_fit(self._lin_func, self.hist_dwell_l[0][10:80], np.log(self.hist_dwell_l[1][10:80]),
-                                     p0=[0.01, 1])
-            self.rate_hl = curve_fit(self._lin_func, self.hist_dwell_h[0][10:80], np.log(self.hist_dwell_h[1][10:80]),
-                                     p0=[0.01, 1])
-        except ValueError:
+        if self.hist_dwell_h is not None:
+            try:
+                # since the histogram has zeros as entries, filter those before passing to curve_fit
+                log_yl = np.log(self.hist_dwell_l[1])
+                inds = np.where(np.isfinite(log_yl))[0]
+                x_l = self.hist_dwell_l[0][inds]
+                y_l = log_yl[inds]
+
+                self.rate_lh = curve_fit(self._lin_func, x_l, y_l, p0=[0.01, 1.])
+
+                # since the histogram has zeros as entries, filter those before passing to curve_fit
+                log_yh = np.log(self.hist_dwell_h[1])
+                inds = np.where(np.isfinite(log_yh))[0]
+                x_h = self.hist_dwell_h[0][inds]
+                y_h = log_yh[inds]
+
+                self.rate_hl = curve_fit(self._lin_func, x_h, y_h, p0=[0.01, 1.])
+
+            except ValueError:
+                self.rate_lh = None
+                self.rate_hl = None
+        else:
             self.rate_lh = None
             self.rate_hl = None
 
@@ -217,12 +233,12 @@ class QntmJumpTrace:
 
         fig = plt.figure(1, figsize=figsize)
         plt.gcf()
-        dim_ax_raw = [0., 0.7, 0.2, 0.27]
-        dim_ax_rot = [0., 0.35, 0.2, 0.27]
-        dim_ax_dwell_hist = [0., 0., 0.2, 0.27]
-        dim_ax_trace = [0.31, 0.55, 0.59, 0.4]
-        dim_ax_histy = [0.91, 0.55, 0.09, 0.4]
-        dim_ax_state_assign = [0.31, 0.05, 0.69, 0.4]
+        dim_ax_raw = [0.05, 0.7, 0.2, 0.25]
+        dim_ax_rot = [0.05, 0.375, 0.2, 0.25]
+        dim_ax_dwell_hist = [0.05, 0.05, 0.2, 0.25]
+        dim_ax_trace = [0.3, 0.55, 0.59, 0.4]
+        dim_ax_histy = [0.9, 0.55, 0.09, 0.4]
+        dim_ax_state_assign = [0.3, 0.05, 0.69, 0.4]
 
         ax_raw = plt.axes(dim_ax_raw)
         ax_rot = plt.axes(dim_ax_rot)
@@ -246,8 +262,8 @@ class QntmJumpTrace:
         if self.hist_dwell_h is None:
             pass
         else:
-            ax_dwell_hist.plot(self.hist_dwell_l[0], self.hist_dwell_l[1], label='low state')
-            ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], label='higher state')
+            ax_dwell_hist.plot(self.hist_dwell_l[0], self.hist_dwell_l[1], 'o', mfc='none', label='low state')
+            ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], 'o', mfc='none', label='higher state')
 
             if self.rate_lh is not None:
                 ax_dwell_hist.plot(self.hist_dwell_l[0], self._exp_dist(self.hist_dwell_l[0], self.rate_lh[0][0],
@@ -256,6 +272,7 @@ class QntmJumpTrace:
                                                                         np.exp(self.rate_hl[0][1])), 'k')
 
             ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0]), np.max(self.hist_dwell_h[0])]))
+
         ax_dwell_hist.set_yscale('log')
         ax_dwell_hist.set_title('histogram of dwell times')
         ax_dwell_hist.set_ylabel('norm. occurence')
