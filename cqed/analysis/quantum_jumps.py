@@ -95,7 +95,7 @@ class QntmJumpTrace:
 
         return x_axis, n
 
-    def _fit_dbl_gaussian(self, data, n_bins=100, start_param_guess=None):
+    def _fit_dbl_gaussian(self, data, n_bins=100, start_param_guess=None, **kwargs):
         """
         Fitting a double gaussian.
         @param n_bins:
@@ -107,7 +107,7 @@ class QntmJumpTrace:
         if start_param_guess is None:
             start_param_guess = [n[20], I_ax[10], I_ax[10] - I_ax[0], n[-20], I_ax[-10], I_ax[10] - I_ax[0]]
 
-        fit, conv = curve_fit(self._dbl_gaussian, I_ax, n, p0=start_param_guess)
+        fit, conv = curve_fit(self._dbl_gaussian, I_ax, n, p0=start_param_guess, **kwargs)
 
         # ensure that the negative gaussian is the first set of data
         if fit[4] < fit[1]:
@@ -177,7 +177,10 @@ class QntmJumpTrace:
         if dbl_gauss_p0 is not None:
             self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, start_param_guess=dbl_gauss_p0)
         else:
-            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real)
+            try:
+                self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real)
+            except RuntimeError:
+                self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, maxfev=int(1e4))
 
         self.raw_hist = self._create_hist(self.raw_data_rot.real, n_bins)
 
