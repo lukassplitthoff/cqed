@@ -1,3 +1,8 @@
+"""
+A set of functions that can be applied to data. Could probably be housed/grouped together elsewhere.
+
+"""
+
 import numpy as np
 import scipy as sp
 
