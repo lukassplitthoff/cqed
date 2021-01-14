@@ -174,7 +174,7 @@ def setup_time_rabi(controller, pulse_times, readout_time,
     controller.setup_acquisition(samples=None, records=pulse_times.size, buffers=navgs, acq_time=acq_time, verbose=False)
 
 def measure_time_rabi(controller, pulse_times, readout_time, qubsrc_power=None, qubsrc_freq=None, hetsrc_power=None, hetsrc_freq=None,   
-                              navgs=500, acq_time=2.56e-6, setup_awg=True, suffix='', fit=False, **kw):
+                              navgs=500, acq_time=2.56e-6, setup_awg=True, suffix='', fit=False, T1_guess=None, **kw):
 
     def return_alazar_trace(d):
 
@@ -229,7 +229,6 @@ def measure_time_rabi(controller, pulse_times, readout_time, qubsrc_power=None, 
         station.LO.off()
         time.sleep(0.1)
 
-
         if fit:
 
             #rotate IQ data
@@ -237,17 +236,39 @@ def measure_time_rabi(controller, pulse_times, readout_time, qubsrc_power=None, 
             rotated_data = dp.IQrotate(mag*np.exp(1.j*phase), angle)
 
             #fit Rabi; still needs work because it can be off by a factor of pi in the phase depending on the sign of the first value!
-            mod = lmfit.models.ExpressionModel('off + amp * exp(-x/t1)*sin(2*pi/period*(x + phase))')
+            mod = lmfit.models.ExpressionModel('off + amp * exp(-x/t1) * cos(2*pi/period*x)')
             xdat = times
             ydat = np.real(rotated_data)
-            period_estimate = 2*xdat[np.argmax(np.abs(savgol_filter(ydat,5,3)-ydat[0]))]
-            # period_estimate = 4*xdat[np.argmax(np.abs(xdat-xdat[0]))]
-            params = mod.make_params(off=np.mean(ydat), amp=ydat[0], t1=1e-6, period=period_estimate, phase=0)
+            period_estimate = 2*xdat[np.argmax(np.abs(savgol_filter(ydat,15,3)-ydat[0]))]
+            off_estimate = np.mean(ydat)
+            print("0.5*period_estimate = ", period_estimate*0.5*1e9)
+            if ydat[0] > off_estimate:
+                A_estimate = np.max(ydat) - np.min(ydat)
+            else:
+                A_estimate = np.min(ydat) - np.max(ydat)            
+            if T1_guess == None:
+                T1_estimate = 1.5e-6
+            elif T1_guess == 'dict':
+                if "t1" in list(d.keys()) and d["t1"]<40e-6:
+                    T1_estimate = d["t1"]
+                else:
+                    print("Not in dict")
+                    T1_estimate = 1.5e-6
+                print("Using T1 = {} us for the Rabi".format(1e6*T1_estimate))
+            else:
+                T1_estimate = T1_guess
+            params = mod.make_params(off=off_estimate, amp=A_estimate, t1=T1_estimate, period=period_estimate)
             params['t1'].set(min=1e-9)
+            params['t1'].set(max=50e-6)
+            params['period'].set(min=1e-9)
+            params['period'].set(max=5e-6)
             out = mod.fit(ydat, params, x=xdat)
-            pipulse_time = out.params['period'].value/4  - out.params['phase'].value
-
+            pipulse_time = 1*out.params['period'].value/2
+            if pipulse_time < 10e-9:
+                pipulse_time = 3*out.params['period'].value/2
             d['pipulse'] = pipulse_time
+            d['t1'] = out.params['t1']
+            print("pi_pulse = ", pipulse_time*1e9)
             return [times, mag, phase, pipulse_time]
 
         else:
@@ -384,9 +405,9 @@ def measure_ramsey(controller, delays, pulse_time, readout_time, qubsrc_power=No
             mod = lmfit.models.ExpressionModel('off + amp * exp(-x/t1)*sin(2*pi/period*(x + phase))')
             xdat = times
             ydat = np.real(rotated_data)
-            period_estimate = 2*xdat[np.argmax(np.abs(savgol_filter(ydat,5,3)-ydat[0]))]
+            period_estimate = 2*xdat[np.argmax(np.abs(savgol_filter(ydat,15,3)-ydat[0]))]
             # period_estimate = 4*xdat[np.argmax(np.abs(xdat-xdat[0]))]
-            params = mod.make_params(off=np.mean(ydat), amp=ydat[0], t1=1e-6, period=period_estimate, phase=0)
+            params = mod.make_params(off=np.mean(ydat), amp=ydat[0], t1=0.15e-6, period=period_estimate, phase=0)
             params['t1'].set(min=1e-9)
             out = mod.fit(ydat, params, x=xdat)
             T2_time = out.params['t1'].value
@@ -438,8 +459,7 @@ def measure_ramsey(controller, delays, pulse_time, readout_time, qubsrc_power=No
         ])
 
 
-def setup_T1(controller, delays, pulse_time, readout_time, 
-                              navgs=500, acq_time=2.56e-6, setup_awg=True):
+def setup_T1(controller, delays, pulse_time, readout_time, navgs=500, acq_time=2.56e-6, setup_awg=True):
     """
     Set up ...
     """
@@ -461,7 +481,7 @@ def setup_T1(controller, delays, pulse_time, readout_time,
     controller.setup_acquisition(samples=None, records=delays.size, buffers=navgs, acq_time=acq_time, verbose=False)
 
 def measure_T1(controller, delays, pulse_time, readout_time, qubsrc_power=None, qubsrc_freq=None, hetsrc_power=None, hetsrc_freq=None, 
-                              navgs=500, acq_time=2.56e-6, setup_awg=True, suffix='', fit=False, **kw):
+                              navgs=500, acq_time=2.56e-6, setup_awg=True, suffix='', fit=False, T1_guess=None, **kw):
 
     def return_alazar_trace(d):
         station = d["STATION"]
@@ -530,11 +550,22 @@ def measure_T1(controller, delays, pulse_time, readout_time, qubsrc_power=None, 
             #fit T1; still needs testing for robustness
             mod = lmfit.models.ExpressionModel('off + amp * exp(-x/t1)')
             xdat = times
-            ydat = np.real(rotated_data)
-            params = mod.make_params(off=ydat[-1], amp=ydat[0]-ydat[-1], t1=1e-6)
+            ydat = np.real(rotated_data)                
+            if T1_guess == None:
+                T1_estimate = 1.5e-6
+            elif T1_guess == 'dict':
+                if "t1" in list(d.keys()) and d["t1"]<40e-6:
+                    T1_estimate = d["t1"]
+                else:
+                    T1_estimate = 1.5e-6
+            else:
+                T1_estimate = T1_guess
+            params = mod.make_params(off=ydat[-1], amp=ydat[0]-ydat[-1], t1=T1_estimate)
             params['t1'].set(min=1e-9)
+            params['t1'].set(max=40e-6)
             out = mod.fit(ydat, params, x=xdat)
             T1_time = out.params['t1']
+            d["t1"] = T1_time
 
             return [times, mag, phase, T1_time]
 
@@ -761,6 +792,8 @@ def measure_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True, hetsrc_pow
         station = d["STATION"]
 
         station = d["STATION"]
+        
+        station.awg.start()
 
         if hetsrc_power is not None:
             station.hetsrc.RF.power(hetsrc_power)

@@ -196,31 +196,33 @@ class EchoSequence(BroadBeanSequence):
 
 class QPTriggerSequence(BroadBeanSequence):
     name = 'QPtrigger_sequence'
-
+    
     def sequence(self, trig_time=1e-6, cycle_time=5e-3,
                  pre_trig_time=1e-6, use_event_seq=False):
+                 
+        chan_map = {1: ['I', 'ats_trigger', 'ro_pulse'],
+                    2: [None, 'qb_pulse', None], }
         elements = []
         if use_event_seq:
-            bps = bbtools.BluePrints(
-                chan_map=self.chan_map, length=cycle_time, sample_rate=self.SR)
-            bps['pulse'].insertSegment(0, ramp, (0, 0), dur=cycle_time)
+            bps = bbtools.BluePrints(chan_map=chan_map, length=cycle_time, sample_rate=self.SR)
+            bps['I'].insertSegment(0, ramp, (0, 0), dur=cycle_time)
 
             elements.append(bbtools.blueprints2element(bps))
         # readout sequence
         end_buffer = 1e-6
         low_time = cycle_time - trig_time - pre_trig_time - end_buffer
 
-        bps = bbtools.BluePrints(
-            chan_map=self.chan_map, length=cycle_time, sample_rate=self.SR)
-        bps['pulse'].insertSegment(0, ramp, (0, 0), dur=cycle_time)
+        bps = bbtools.BluePrints(chan_map=chan_map, length=cycle_time, sample_rate=self.SR)
+        bps['I'].insertSegment(0, ramp, (0, 0), dur=cycle_time)
 
         bps['ats_trigger'] = [(pre_trig_time, trig_time)]
 
-        if 'ro_trigger' in bps.map:
+        if 'ro_pulse' in bps.map:
             t0, t1 = 0, cycle_time
-            bps['ro_trigger'] = [(t0, t1)]
+            bps['ro_pulse'] = [(t0, t1)]
 
         for k, v in bps.map.items():
+            # This condition I am not changing right now when renaming the channels. I'l look into it later
             if '_trigger' in k and k not in ['ats_trigger', 'ro_trigger']:
                 t0, t1 = pre_trig_time + trig_time, low_time
                 bps[k] = [(t0, t1)]
