@@ -1,42 +1,12 @@
+"""
+A set of functions that allow wrapping and combining multiple current sources into a single custom magnet meta instrument.
+
+"""
+
 from qcodes.instrument.base import Instrument
 from qcodes.instrument.parameter import Parameter
 import numpy as np
 from time import sleep
-
-
-class CustomDummy(Instrument):
-    """Meta instrument that sets fake parameters. Used for testing. """
-
-    def __init__(self, name, instrument):
-        super().__init__(name)
-
-        self.source = instrument
-
-        self.add_parameter(
-            "field", unit="T", label="measured field", get_cmd=self._get_field,
-        )
-
-        self.add_parameter(
-            "field_target",
-            unit="T",
-            label="target field",
-            get_cmd=self._get_target,
-            set_cmd=self._set_target,
-        )
-
-        self._field_target = 0.0
-
-    def _get_field(self):
-        return 0.0
-
-    def _get_target(self):
-        return self._field_target
-
-    def _set_target(self, val):
-        self._field_target = val
-
-    def ramp_to_target(self):
-        sleep(0.1)
 
 
 class CustomGS210(Instrument):
@@ -98,7 +68,6 @@ class CustomGS210(Instrument):
             step=self.step,
             delay=self.delay,
         )
-
 
 class CustomE36313A(Instrument):
     """Meta instrument that wraps the Keysight E36313A to allow setting fields
@@ -170,6 +139,39 @@ class CustomE36313A(Instrument):
             pass
             # hacky workaround for when your higher level sweep function starts from the current setpoint
 
+class CustomDummy(Instrument):
+    """Meta instrument that sets fake parameters. Used for testing. """
+
+    def __init__(self, name, instrument):
+        super().__init__(name)
+
+        self.source = instrument
+
+        self.add_parameter(
+            "field", unit="T", label="measured field", get_cmd=self._get_field,
+        )
+
+        self.add_parameter(
+            "field_target",
+            unit="T",
+            label="target field",
+            get_cmd=self._get_target,
+            set_cmd=self._set_target,
+        )
+
+        self._field_target = 0.0
+
+    def _get_field(self):
+        return 0.0
+
+    def _get_target(self):
+        return self._field_target
+
+    def _set_target(self, val):
+        self._field_target = val
+
+    def ramp_to_target(self):
+        sleep(0.1)
 
 class CustomMagnet(Instrument):
     """
