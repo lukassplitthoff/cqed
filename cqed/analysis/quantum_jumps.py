@@ -2,17 +2,19 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.linalg import eig
 import matplotlib.pyplot as plt
+from hmmlearn import hmm
 
 class QntmJumpTrace:
 
 
-    def __init__(self, data, timestep=1., complex=True):
+    def __init__(self, data, timestep=1., complex=True, seq_lengths = 0):
         """
         Class to analyse quantum jumps traces and extract transition
         rates between the identified states
 
         @param data: either a complex 1d-array, or a tuple (real, imag)
         @param complex: bool, default=True
+        @param seq_length: array, default=[len(data)]
         """
 
         if complex:
@@ -29,9 +31,44 @@ class QntmJumpTrace:
         self.dwell_h = []
         self.hist_dwell_l = []
         self.hist_dwell_h = []
-
         self.fitresult_gauss = None
+        
+        self.model = hmm.GaussianHMM(n_components=2, n_iter=20)
+        if seq_lengths = 0:
+            self.seq_lengths = [len(raw_data)]
+        else:
+            self.seq_lengths = seq_lengths
+        self.hidden_states = []
+        self.hmm_rates = []
+    
+    def _hmm_fit(self)
+        """
+        Function that fits the Hidden Markov model of a two state telegram signal with Gaussian noise. Each state has its own noise distribution.
+        """
+        if len(self.raw_data_rot) == sum(self.seq_lengths):
+            self.model.fit(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
+        else:
+            raise ValueError("Data and seq_lengths do not match")
+            
+    def _hmm_predict(self):
+        """
+        Function that assigns the most likely states as predicted by the Hidden Markov model
+        """
+        self.hidden_states = self.model.predict(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
+        return self.hidden_states
+    
+    def _calc_rates(self):
+        """
+        Function that calculates the rates based on the decay rate and stationary distribution of the Hidden Markov model
+        """
+        a = np.linalg.eig(T) #calculate the eigenvalues 
+        tau = -self.timestep/np.log(np.min(a[0])) #calculate some characteristic 1/rate
+        stat = self.model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
 
+        #  (1/tau = 1/t_e +1/t_o)
+        self.hmm_times = [tau/(b[1]/(b[1]+b[0]), tau/(b[0]/(b[0]+b[1])]
+        return self.hmm_times
+      
     def _max_variance_angle(self, data):
         """
         Function from Gijs that rotates data towards max variance
