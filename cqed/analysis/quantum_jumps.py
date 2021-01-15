@@ -3,25 +3,24 @@ from scipy.optimize import curve_fit
 from scipy.linalg import eig
 import matplotlib.pyplot as plt
 
+
 class QntmJumpTrace:
 
-
-    def __init__(self, data, timestep=1., complex=True):
+    def __init__(self, data, data_complex=True):
         """
         Class to analyse quantum jumps traces and extract transition
         rates between the identified states
 
         @param data: either a complex 1d-array, or a tuple (real, imag)
-        @param complex: bool, default=True
+        @param data_complex: bool, default=True
         """
 
-        if complex:
+        if data_complex:
             self.raw_data = data
         else:
             self.raw_data = data[0] + 1.j * data[1]
 
         self.n_sigma_filter = 1.
-        self.timestep = timestep
         self.raw_data_rot = np.empty_like(self.raw_data)
         self.raw_hist = []
         self.state_vec = np.empty_like(self.raw_data)
@@ -29,13 +28,17 @@ class QntmJumpTrace:
         self.dwell_h = []
         self.hist_dwell_l = []
         self.hist_dwell_h = []
+        self.rate_lh = None
+        self.rate_hl = None
 
         self.fitresult_gauss = None
 
-    def _max_variance_angle(self, data):
+    @staticmethod
+    def _max_variance_angle(data):
         """
-        Function from Gijs that rotates data towards max variance
-        in x axis.
+        Find the angle of rotation for a complex dataset, which maximizes the variance of the data along the real axis
+        @param data: (array) raw data assumed to be complex
+        @return: (float) rotation angle that maximizes the variance in the real axis.
         """
         i = np.real(data)
         q = np.imag(data)
@@ -51,63 +54,62 @@ class QntmJumpTrace:
         theta = np.arctan(eigvec1[0] / eigvec1[1])
         return theta
 
-    def _rotate_data(self, data):
+    @staticmethod
+    def _rotate_data(data):
         """
         Rotate the complex data by a given angle theta
-        @param data: complex IQ data to be returned
-        @param theta: rotation angle (radians)
+        @param data: complex data to be rotated
         @return: rotated complex array
         """
 
-        theta = self._max_variance_angle(data)
+        theta = QntmJumpTrace._max_variance_angle(data)
         return data * np.exp(1.j * theta)
 
-    def _plot_IQ_hist(self, data, mtplib_axis, n_bins=50):
-        """
-        Plot a 2d histogram
-        @param figsize:
-        @param n_bins:
-        @return:
-        """
-        hist = mtplib_axis.hist2d(data.real, data.imag, bins=n_bins)
-
-    def _dbl_gaussian(self, x, c1, mu1, sg1, c2, mu2, sg2):
+    @staticmethod
+    def _dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
         """
         A double gaussian distribution
-        @param x:
-        @param c1:
-        @param mu1:
-        @param sg1:
-        @param c2:
-        @param mu2:
-        @param sg2:
-        @return:
+        @param x: x-axis
+        @param c1: scaling parameter for distribution 1
+        @param mu1: mean of first gaussian
+        @param sg1: variance of first gaussian
+        @param c2: scaling parameter for distribution 2
+        @param mu2: mean of second gaussian
+        @param sg2: variance of second gaussian
+        @return: array of double gaussian distribution
         """
         res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.))
         return res
 
-    def _create_hist(self, data, n_bins):
-        """Calculate the histogram and return an x-axis that is of same length as the numbers
-        the x-axis represents the middle of the bins"""
+    @staticmethod
+    def _create_hist(data, n_bins):
+        """Calculate a histogram and return an x-axis that is of same length. The numbers of the x-axis represent
+         the middle of the corresponding bins
+         @param data: array to histogram
+         @param n_bins: number of bins for the histogramming
+         @return: tuple of: middle of bins, normalized occurrence"""
 
         n, bins = np.histogram(data, bins=n_bins, density=True)
         x_axis = bins[:-1] + (bins[1] - bins[0]) / 2.
 
         return x_axis, n
 
-    def _fit_dbl_gaussian(self, data, n_bins=100, start_param_guess=None, **kwargs):
-        """
-        Fitting a double gaussian.
-        @param n_bins:
-        @return:
+    @staticmethod
+    def _fit_dbl_gaussian(data, n_bins=100, start_param_guess=None, **kwargs):
+        """ Histogram an input data set, then fit a double gaussian distribution using scipy.curve_fit.
+        @param data: raw data set to fit a double gaussian distribution to
+        @param n_bins: number of bins to be used for the histogramming
+        @param start_param_guess: starting parameters for the fitting algorithm, expects iterable of length 6 with
+            [amplitude1, mean1, standard deviation1, amplitude2, mean2, standard deviation1]
+        @return: array of the fit parameters
         """
 
-        I_ax, n = self._create_hist(data, n_bins)
+        I_ax, n = QntmJumpTrace._create_hist(data, n_bins)
 
         if start_param_guess is None:
             start_param_guess = [n[20], I_ax[10], I_ax[10] - I_ax[0], n[-20], I_ax[-10], I_ax[10] - I_ax[0]]
 
-        fit, conv = curve_fit(self._dbl_gaussian, I_ax, n, p0=start_param_guess, **kwargs)
+        fit, conv = curve_fit(QntmJumpTrace._dbl_gaussian, I_ax, n, p0=start_param_guess, **kwargs)
 
         # ensure that the negative gaussian is the first set of data
         if fit[4] < fit[1]:
@@ -115,7 +117,18 @@ class QntmJumpTrace:
 
         return fit
 
-    def _latching_filter(self, arr, means, sigm):
+    @staticmethod
+    def _latching_filter(arr, means, sigm):
+        """ Assign states of a telegram signal with noise. For the algorithm to register a jump the point has to
+         exceed the threshold given by mean +- sigma. Otherwise the point will be assigned the same state as the
+         previous one
+         @param arr: time series of points
+         @param means: tuple (mean of emissions of state 1, mean of emission of state 2)
+         @param sigm: tuple (value below/above the mean where a jump is assigned for state 1, value for state 2)
+         @return state, dwell_l, dwell_h: three arrays. state holds the assigned state (0 for the states with mean1,
+          1 for the state with mean2), dwell_l array of dwell times in the state centered around mean1,
+          dwell_h array of dwell times in the state centered around mean2.
+          """
 
         state = np.ones_like(arr) * 0.5
         dwell_g = []
@@ -152,15 +165,22 @@ class QntmJumpTrace:
 
         return state, np.array(dwell_g), np.array(dwell_e)
 
-    def _exp_dist(self, x, gamma, a):
-        """ Exponential distribution with rate gamma gamma * exp(-gamma * x)
-        @param x:
-        @param gamma:
-        @return:
+    @staticmethod
+    def _exp_dist(x, gamma, a):
+        """ Exponential distribution a * exp(-gamma * x)
+        @param x: array
+        @param gamma: relaxation rate
+        @param a: scaling prefactor
+        @return: array
         """
         return a * np.exp(-gamma * x)
 
-    def _lin_func(self, x, m, c):
+    @staticmethod
+    def _lin_func(x, m, c):
+        """A simple linear function, where positive m corresponds to negative slope
+        @param x: x-axis
+        @param m: slope
+        @param c: offset"""
 
         return -m * x + c
 
@@ -168,6 +188,17 @@ class QntmJumpTrace:
                           n_sigma_filter=1.):
         """
         Perform the entire data analysis from raw IQ trace to transition rates between two states
+        Usage: after initializing a class instance run this function to perform analysis comprising of:
+        rotating the data for max variance in real part, histogram and fit a double gaussian dist. to the real part
+        assign states and find dwell times using the latching_filter. Histogram the dwell times and fit an exponential
+        distribution to find the transition rates.
+        @param n_bins: number of bins used for the histogram of the real part of the rotated data
+        @param dbl_gauss_p0: starting parameters for the double gaussian fit
+        @param override_gaussfit: (bool) default False: use the fit parameters found using the internal dbl gauss fit
+        route. True: use the means and sigmas provided through the state_filter_prms kwarg.
+        @param state_filter_prms: (tuple) Parameters used for the state assignment algorithm is override_gaussfit=True.
+        Expects input of the form ((mean1, mean2), (standard deviation1, standard deviation2))
+        @param n_sigma_filter: (float) prefactor to adjust the thresholding for the state assignment algorithm.
         @return: class instance itself
         """
 
@@ -191,7 +222,7 @@ class QntmJumpTrace:
                                                                                self.fitresult_gauss[[2, 5]])
         else:
             self.fitresult_gauss = np.array([1., state_filter_prms[0][0], state_filter_prms[1][0],
-                                    1., state_filter_prms[0][1], state_filter_prms[1][1]])
+                                             1., state_filter_prms[0][1], state_filter_prms[1][1]])
 
             self.state_vec, self.dwell_l, self.dwell_h = self._latching_filter(self.raw_data_rot.real,
                                                                                self.fitresult_gauss[[1, 4]],
@@ -233,8 +264,13 @@ class QntmJumpTrace:
         return self
 
     def plot_analysis(self, figsize=(16, 9)):
+        """
+        Function to plot an overview of the latching_pipeline fit results.
+        @param figsize: passed to matplotlib.pyplot.figure to adjust the figure size
+        @return: matplotlib figure with multiple axes showing the analysis results.
+        """
 
-        fig = plt.figure(1, figsize=figsize)
+        plt.figure(1, figsize=figsize)
         plt.gcf()
         dim_ax_raw = [0.05, 0.7, 0.2, 0.25]
         dim_ax_rot = [0.05, 0.375, 0.2, 0.25]
@@ -304,13 +340,10 @@ class QntmJumpTrace:
         ax_histy.set_title('histogram rot. data')
         ax_histy.legend()
 
-
-        ax_state_assign.plot(np.arange(0,500,1), self.raw_data_rot.real[:500], 'k.-', label='real rotated data')
-        ax_state_assign.plot(np.arange(0,500,1), (self.state_vec[:500] * (np.abs(self.fitresult_gauss[1])
-                                                                         + self.fitresult_gauss[4])
-                                                  + self.fitresult_gauss[1]), color='red', label='state assignment')
+        ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[:500], 'k.-', label='real rotated data')
+        ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[:500] * (np.abs(self.fitresult_gauss[1])
+                                                                            + self.fitresult_gauss[4])
+                                                    + self.fitresult_gauss[1]), color='red', label='state assignment')
         ax_state_assign.set_xlabel('timestep')
         ax_state_assign.set_ylabel('I (arb. un.)')
         ax_state_assign.legend()
-
-
