@@ -2,6 +2,8 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.linalg import eig
 import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
+from lmfit import minimize, Parameters
 
 
 class QntmJumpTrace:
@@ -347,3 +349,135 @@ class QntmJumpTrace:
         ax_state_assign.set_xlabel('timestep')
         ax_state_assign.set_ylabel('I (arb. un.)')
         ax_state_assign.legend()
+
+
+
+def double_Gaussian(x, params):
+    A1 = params["A1"] 
+    A2 = params["A2"] 
+    x1 = params["x1"] 
+    x2 = params["x2"] 
+    sigma1 = params["sigma1"] 
+    sigma2 = params["sigma2"] 
+
+ 
+
+    gaussian_1 = A1 * np.exp(-(x-x1)**2/(2*sigma1**2)) / np.sqrt(2*np.pi*sigma1**2)
+    gaussian_2 = A2 * np.exp(-(x-x2)**2/(2*sigma2**2)) / np.sqrt(2*np.pi*sigma2**2)
+    return gaussian_1 + gaussian_2
+
+def QPP_Lorentzian(f, params):
+    Gamma = params["Gamma"] 
+    a = params["a"] 
+    b = params["b"] 
+    
+    return a * (4*Gamma / ((2*Gamma)**2+(2*np.pi*f)**2)) + b
+ 
+
+def residual(params, x, y, function):
+    y_model = function(x, params)
+    return y_model - y
+
+
+def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=-0.014, x2=0.000, sigma=0.005, 
+                 sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, out_bounds=0.03,  plot=True, return_x=False):
+    
+    if plot:
+        plt.figure(figsize = (12, 4))
+    
+    # Integrating data
+    navg = data.shape[0]
+    tstep = np.diff(time)[0]
+    nelements = int(tint/tstep)
+    divisors = int(data[0,:,].size//nelements)
+    integrated_data = np.zeros((navg, divisors), dtype=np.complex64)
+    for ii in range(navg):
+        integrated_data[ii,:] = np.mean(data[ii,0:divisors*nelements].reshape(-1, nelements), axis=1)
+    
+    # Rotating integrated data
+    angle = 0
+    for ii in range(navg):
+        angle += qpp.IQangle(integrated_data[ii,:])
+    angle /= navg
+    rotated_integrated_data = qpp.IQrotate(integrated_data, angle)
+    
+    # Plotting histogram
+    simplified_data = rotated_integrated_data.reshape(-1)   
+    bins_n = int(simplified_data.shape[0]/180.)
+    min_data = np.min(np.real(simplified_data))
+    max_data = np.max(np.real(simplified_data))
+    bins_n = int(bins_n * (x_max-x_min)/(max_data-min_data))
+    ns, bins = np.histogram(np.real(simplified_data), bins=bins_n, range=(x_min, x_max))
+    xdat = np.zeros(ns.shape)
+    ydat = ns
+    for i in range(len(bins)-1):
+        xdat[i] = 0.5*(bins[i+1]+bins[i])
+    if plot:
+        plt.subplot(121)
+        plt.plot(xdat, ydat, 'bo')
+        
+        
+    # Fitting two Gaussians
+    ydat = ns
+    xdat = np.zeros(ns.shape)
+    for i in range(len(bins)-1):
+        xdat[i]=0.5*(bins[i+1]+bins[i])
+    params = Parameters()
+    params.add('A1', value=A1, min=A_min, max=A_max)
+    params.add('A2', value=A2, min=A_min, max=A_max)
+    params.add('x1', value=x1, min=x_min, max=x_max)
+    params.add('x2', value=x2, min=x_min, max=x_max)
+    params.add('sigma1', value=sigma, min=sigma_min, max=sigma_max)
+    params.add('sigma2', value=sigma, min=sigma_min, max=sigma_max)
+    out = minimize(residual, params, args=(xdat, ydat, double_Gaussian))
+    R = out.params["A2"].value / out.params["A1"].value
+    fit_x1 = out.params["x1"].value
+    fit_x2 = out.params["x2"].value
+    if plot:
+        plt.plot(xdat, double_Gaussian(xdat, out.params), 'r-', lw=2, label='fit')
+        plt.vlines([fit_x1, fit_x2], ymin=0, ymax=np.max(ydat), colors='r')
+        plt.plot(xdat, double_Gaussian(xdat, params), 'k:', label='guess')
+        plt.xlim([min_data, max_data])   
+        plt.xlabel("I (a.u.)")
+        plt.ylabel("Counts")
+    print(out.params["x1"].value, out.params["x2"].value)
+    print(out.params["sigma1"].value, out.params["sigma2"].value)
+    print(out.params["A1"].value, out.params["A2"].value)
+
+ 
+    # Calculating and plotting PSD
+    fs, PSDs = qpp.PSDs(time, data[:,:])
+    # Plotting initial guess for the fit
+    m = np.argmin(np.abs(fs-1e6))
+    xdat = np.real(fs[1:m])
+    ydat = PSDs[1:m]
+    if plot:
+        plt.subplot(122)
+        plt.plot(xdat, ydat, 'b-', label='data')
+        
+    # Fitting Lorentzian
+    Gamma_guess = 3e3
+    params = Parameters()
+    params.add('Gamma', value=Gamma_guess)
+    params.add('a', value=Gamma_guess*np.mean(ydat[0:9]))
+    params.add('b', value=np.mean(ydat[-10:-1]))
+    out = minimize(residual, params, args=(xdat, ydat, QPP_Lorentzian))
+    Gamma = out.params["Gamma"].value
+
+ 
+
+    if plot:
+        plt.plot(xdat, QPP_Lorentzian(xdat, out.params), 'r-', label='fit')
+    
+        plt.yscale('log')
+        plt.xlabel('Frequency (Hz)')
+        plt.xscale('log')
+        plt.legend()
+        plt.show()
+    
+    Gamma1 = 2*Gamma/(1+R)
+    Gamma2 = 2*R*Gamma/(1+R)
+    if not return_x:
+        return 1/Gamma1, 1/Gamma2
+    else:    
+        return 1/Gamma1, 1/Gamma2, fit_x1, fit_x2
