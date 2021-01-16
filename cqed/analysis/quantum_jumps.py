@@ -352,6 +352,50 @@ class QntmJumpTrace:
 
 
 
+def IQangle(data):
+    I = np.real(data)
+    Q = np.imag(data)
+    Cov = np.cov(I,Q)
+    A = sp.linalg.eig(Cov)
+    eigvecs = A[1]
+    if A[0][1]>A[0][0]:
+        eigvec1 = eigvecs[:,0]
+    else:
+        eigvec1 = eigvecs[:,1]
+    theta = np.arctan(eigvec1[0]/eigvec1[1])
+    return theta
+
+def IQrotate(data, theta):
+    return data*np.exp(1.j*theta)
+
+def PSD(ts, ys):
+    '''
+    returns the PSD of a timeseries and freuency axis
+    '''
+    ys_fft = np.abs(np.fft.fft(ys))**2
+    
+    dt = np.diff(ts)[0]
+    fmax = 1. / (dt)
+    df = 1. / (len(ts)*dt)
+    pts_fft = len(ts) / 2
+    fs1 = np.linspace(0, fmax / 2.-df, pts_fft)
+    fs2 = np.linspace(fmax / 2., df, pts_fft)
+    fs = np.append(fs1, -fs2)
+    #print(len(fs), len(ys_fft))
+    return fs, ys_fft
+
+def PSDs(ts, ys_array):
+    '''
+    returns the averaged PSD of an array of timeseries with freuency axis
+    '''
+    shp = ys_array.shape
+    ys_fft = 0.*ys_array[0,:].real
+    for ys in ys_array:
+        
+        fs, ys_fft_i = PSD(ts, ys) 
+        ys_fft += ys_fft_i/shp[0]
+    return fs, ys_fft
+
 def double_Gaussian(x, params):
     A1 = params["A1"] 
     A2 = params["A2"] 
