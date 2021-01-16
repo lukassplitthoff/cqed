@@ -19,14 +19,14 @@ instruments:
     init:
       numdacs: 16
 
-  TWPA_pump:
+  TWPA:
     type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
     address: TCPIP0::169.254.248.54
     enable_forced_reconnect: true
 
   Keithley1:
     type: qcodes.instrument_drivers.tektronix.Keithley_2000.Keithley_2000
-    address: GPIB11::16::INSTR
+    address: GPIB0::13::INSTR
     enable_forced_reconnect: true 
 
   yoko:
@@ -52,8 +52,8 @@ instruments:
     enable_forced_reconnect: true
   
   qubsrc:
-    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
-    address: TCPIP0::169.254.2.20
+    type: qcodes_contrib_drivers.drivers.Keysight.Keysight_E8267D.Keysight_E8267D
+    address: GPIB1::19::INSTR
     enable_forced_reconnect: true
 
   LO:

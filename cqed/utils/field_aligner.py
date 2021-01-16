@@ -2,7 +2,9 @@
 # the frequency of a reference resonator
 # cQED group @Kouwenhoven-lab TU Delft
 
-from cqed.custom_pysweep_functions.vna import return_vna_trace
+# As of 13-01-2021 Arno considers this outdated based on new understanding of pysweep and qcodes.
+# if there is demand for it, it can be updated in a fairly short amount of time.
+
 import numpy as np
 from time import sleep
 import matplotlib.pyplot as plt
@@ -297,7 +299,7 @@ class FieldAligner(object):
             elif optimize_strategy == "optimize_at_fields":
                 if np.any(np.isclose(r, optimize_at, atol=5e-4)):
                     print(f"Current field is in `optimize_at`, thus re-optimizing.")
-                    current_objective = self.self.optimize_axis(
+                    current_objective = self.optimize_axis(
                         axis=axis, 
                         verbose=verbose,
                         return_extra=False,

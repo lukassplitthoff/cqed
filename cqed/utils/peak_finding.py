@@ -5,36 +5,44 @@
 A set of functions used to find extrema in (potentially noisy) data.
 
 Would be good to identify some other options, but ultimately it will depend on the quality of the data and is thus a bit user dependent.
+
 """
 
 import numpy as np
 from scipy import signal
 
-def _reflect_in_mean(ys):
+def _dip_to_peak(ys):
     """ 
     Function to change a dip into a peak, so that we can also look for peaks in data with dips
     """
-    return -ys+2*np.mean(ys)
+    reflected = -ys+2*np.mean(ys)
+    positive = reflected+1.1*np.min(reflected)
+    return positive
 
 def _round_up_to_odd(f):
     return int(np.ceil(f) // 2 * 2 + 1)
 
 def _convert_to_dBm(ys):
+    """ 
+    Converts linear amplitude into dBm.
+    """
     return 20 * np.log10(ys)
 
-def find_peak_literal(fs, ys, reflect=False, dBm=False):
+def find_peak_literal(fs, ys, dip=False, dBm=False):
     """ 
     Finds the frequency belonging to the literal maximal amplitude of a trace.
 
     fs (any): array of x values
     ys (any) array of y values
+    dip (boolean): change dips into peaks
+    dBm (boolean): convert linear amplitude to dBm
     
     returns:
     value of fs that corresponds to the maximum of ys
     """
 
-    if reflect==True:
-        ys = _reflect_in_mean(ys)
+    if dip==True:
+        ys = _dip_to_peak(ys)
     if dBm==True:
         ys = _convert_to_dBm(ys)
 
@@ -51,8 +59,8 @@ def find_peak_filtered(fs, ys, window=1e6, prominence=4):
     args:
     fs (any): array of x values
     ys (any) array of y values
-    window (same as fs): window used to filter data. Should not be larger than resonance linewidth of interest.
-    prominence (same as ys): the topographic prominense a peak needs to have to be considered a peak. 
+    window (same unit as fs): window used to filter data. Should not be larger than resonance linewidth of interest.
+    prominence (same unit as ys): the topographic prominense a peak needs to have to be considered a peak. 
     
     returns:
     value of fs that corresponds to the identified maximum in ys
