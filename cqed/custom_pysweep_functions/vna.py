@@ -331,7 +331,9 @@ def measure_adaptive_linear_sweep(f0, fspan, fstep, suffix='', **kwargs):
 
     return adaptive_measurement_function
 
-# CW functions from here onwards
+
+
+# ---------------------------------- CW functions from here onwards ------------------------------------------
 
 
 def setup_CW_sweep(
@@ -470,7 +472,7 @@ def measure_PSD_averaged(f0, bandwidth, averages, t_int=None, points=None, suffi
 
         for ii in range(averages):
             vna_data = return_cw_sweep(
-                setup_vna=True, cw_frequency=f0, bw=bandwidth, t_int=t_int, npoints=points, **kwargs)(d)
+                setup_vna=True, cw_frequency=f0, bw=bandwidth, t_int=t_int, npts=points, **kwargs)(d)
             I = vna_data[1]
             Q = vna_data[2]
 
