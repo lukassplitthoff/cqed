@@ -353,6 +353,9 @@ class QntmJumpTrace:
 
 
 def IQangle(data):
+    '''
+    Calculate the rotation angle for complex data.
+    '''
     I = np.real(data)
     Q = np.imag(data)
     Cov = np.cov(I,Q)
@@ -366,9 +369,12 @@ def IQangle(data):
     return theta
 
 def IQrotate(data, theta):
+    '''
+    Rotate complex data by an angle theta.
+    '''
     return data*np.exp(1.j*theta)
 
-def PSD(ts, ys):
+def calculate_PSD(ts, ys):
     '''
     returns the PSD of a timeseries and freuency axis
     '''
@@ -384,7 +390,7 @@ def PSD(ts, ys):
     #print(len(fs), len(ys_fft))
     return fs, ys_fft
 
-def PSDs(ts, ys_array):
+def calculate_PSDs(ts, ys_array):
     '''
     returns the averaged PSD of an array of timeseries with freuency axis
     '''
@@ -392,11 +398,14 @@ def PSDs(ts, ys_array):
     ys_fft = 0.*ys_array[0,:].real
     for ys in ys_array:
         
-        fs, ys_fft_i = PSD(ts, ys) 
+        fs, ys_fft_i = calculate_PSD(ts, ys) 
         ys_fft += ys_fft_i/shp[0]
     return fs, ys_fft
 
 def double_Gaussian(x, params):
+    '''
+    Double Gaussian function.
+    '''
     A1 = params["A1"] 
     A2 = params["A2"] 
     x1 = params["x1"] 
@@ -404,13 +413,14 @@ def double_Gaussian(x, params):
     sigma1 = params["sigma1"] 
     sigma2 = params["sigma2"] 
 
- 
-
     gaussian_1 = A1 * np.exp(-(x-x1)**2/(2*sigma1**2)) / np.sqrt(2*np.pi*sigma1**2)
     gaussian_2 = A2 * np.exp(-(x-x2)**2/(2*sigma2**2)) / np.sqrt(2*np.pi*sigma2**2)
     return gaussian_1 + gaussian_2
 
 def QPP_Lorentzian(f, params):
+    '''
+    Lorentzian function.
+    '''
     Gamma = params["Gamma"] 
     a = params["a"] 
     b = params["b"] 
@@ -441,9 +451,9 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=
     # Rotating integrated data
     angle = 0
     for ii in range(navg):
-        angle += qpp.IQangle(integrated_data[ii,:])
+        angle += IQangle(integrated_data[ii,:])
     angle /= navg
-    rotated_integrated_data = qpp.IQrotate(integrated_data, angle)
+    rotated_integrated_data = IQrotate(integrated_data, angle)
     
     # Plotting histogram
     simplified_data = rotated_integrated_data.reshape(-1)   
@@ -490,7 +500,7 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=
 
  
     # Calculating and plotting PSD
-    fs, PSDs = qpp.PSDs(time, data[:,:])
+    fs, PSDs = calculate_PSDs(time, data[:,:])
     # Plotting initial guess for the fit
     m = np.argmin(np.abs(fs-1e6))
     xdat = np.real(fs[1:m])
@@ -508,9 +518,7 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=
     out = minimize(residual, params, args=(xdat, ydat, QPP_Lorentzian))
     Gamma = out.params["Gamma"].value
 
- 
-
-    if plot:
+     if plot:
         plt.plot(xdat, QPP_Lorentzian(xdat, out.params), 'r-', label='fit')
     
         plt.yscale('log')
