@@ -4,6 +4,8 @@ from scipy.linalg import eig
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 from lmfit import minimize, Parameters
+from scipy.signal import argrelextrema
+from scipy.signal import savgol_filter
 
 
 class QntmJumpTrace:
