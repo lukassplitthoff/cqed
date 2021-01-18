@@ -590,10 +590,6 @@ def QPP_rates_v1(time, data, tint=40e-6, A_min=0.0, A_max=100.0,
         plt.xlim([min_data, max_data])   
         plt.xlabel("I (a.u.)")
         plt.ylabel("Counts")
-    print(out.params["x1"].value, out.params["x2"].value)
-    print(out.params["sigma1"].value, out.params["sigma2"].value)
-    print(out.params["A1"].value, out.params["A2"].value)
-
  
     # Calculating and plotting PSD
     fs, PSDs = qpp.PSDs(time, data[:,:])
@@ -614,11 +610,9 @@ def QPP_rates_v1(time, data, tint=40e-6, A_min=0.0, A_max=100.0,
     out = minimize(residual, params, args=(xdat, ydat, QPP_Lorentzian))
     Gamma = out.params["Gamma"].value
 
- 
 
     if plot:
         plt.plot(xdat, QPP_Lorentzian(xdat, out.params), 'r-', label='fit')
-    
         plt.yscale('log')
         plt.xlabel('Frequency (Hz)')
         plt.xscale('log')
