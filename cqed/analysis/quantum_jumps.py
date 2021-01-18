@@ -368,11 +368,13 @@ def IQangle(data):
     theta = np.arctan(eigvec1[0]/eigvec1[1])
     return theta
 
+
 def IQrotate(data, theta):
     '''
     Rotate complex data by an angle theta.
     '''
     return data*np.exp(1.j*theta)
+
 
 def calculate_PSD(ts, ys):
     '''
@@ -390,6 +392,7 @@ def calculate_PSD(ts, ys):
     #print(len(fs), len(ys_fft))
     return fs, ys_fft
 
+
 def calculate_PSDs(ts, ys_array):
     '''
     returns the averaged PSD of an array of timeseries with freuency axis
@@ -401,6 +404,57 @@ def calculate_PSDs(ts, ys_array):
         fs, ys_fft_i = calculate_PSD(ts, ys) 
         ys_fft += ys_fft_i/shp[0]
     return fs, ys_fft
+
+def guess_x1_x2(xdat, ydat, plot=False):
+    '''
+    Calculates initial guess for x1 and x2 for a double Gaussian fit.
+    After smoothing the data, it first finds a local minimum to split the data 
+    in two halfs, with a peak in each half. It then finds the maximum at each 
+    side if the local minimum to estimate x1 and x2, the centers of the two 
+    Gaussian peaks. If there is no central local minimum, it finds the maximum 
+    of the data and returns it as the guess for both peaks.
+    '''
+
+    M = np.max(ydat)
+    m = len(ydat)
+    m1 = 0
+    while ydat[m1]<0.2*M:
+        m1+=1
+    m2 = m-1
+    while ydat[m2]<0.2*M:
+        m2-=1   
+    
+    n = 2*int(0.1*(m2-m1))+1
+    y_smoothed = savgol_filter(ydat[m1:m2], n, 3)
+    y_smoothed = savgol_filter(y_smoothed, n, 3)
+    y_smoothed = savgol_filter(y_smoothed, n, 3)
+    ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
+    ii = ii[0]
+    if len(ii)==0:
+        # If there is no central minimum
+        ix1 = np.argmax(ydat)
+        ix2 = ix1
+    elif len(ii)==1:
+        # If there is just one local minimum (ideal case)
+        i = ii[0]
+        ix1 = np.argmax(ydat[0:i])
+        ix2 = i + np.argmax(ydat[i:m-1])
+    else:
+        # If it found more than one local minimum
+        i = np.min(ii)
+        ix1 = np.argmax(ydat[0:i])
+        ix2 = i + np.argmax(ydat[i:m-1])
+        
+    if plot:
+        plt.figure(figsize=(16,10))
+        plt.plot(xdat, ydat, lw=1, c='k')
+        plt.plot(xdat[m1:m2], y_smoothed, lw=5, c='r')
+        plt.plot(xdat[ii], ydat[ii], 'o', c='k', ms=13)
+        plt.vlines([xdat[ix1], xdat[ix2]], 0, np.max(ydat), color='k', lw=5)
+        plt.xlim([-0.006, 0.006])
+        plt.show()
+    return xdat[ix1], xdat[ix2]
+
 
 def double_Gaussian(x, params):
     '''
@@ -416,6 +470,7 @@ def double_Gaussian(x, params):
     gaussian_1 = A1 * np.exp(-(x-x1)**2/(2*sigma1**2)) / np.sqrt(2*np.pi*sigma1**2)
     gaussian_2 = A2 * np.exp(-(x-x2)**2/(2*sigma2**2)) / np.sqrt(2*np.pi*sigma2**2)
     return gaussian_1 + gaussian_2
+
 
 def QPP_Lorentzian(f, params):
     '''
@@ -433,7 +488,7 @@ def residual(params, x, y, function):
     return y_model - y
 
 
-def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=-0.014, x2=0.000, sigma=0.005, 
+def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, sigma=0.005, 
                  sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, out_bounds=0.03,  plot=True, return_x=False):
     
     if plot:
@@ -451,13 +506,14 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=
     # Rotating integrated data
     angle = 0
     for ii in range(navg):
-        angle += IQangle(integrated_data[ii,:])
+        angle += qpp.IQangle(integrated_data[ii,:])
     angle /= navg
-    rotated_integrated_data = IQrotate(integrated_data, angle)
+    rotated_integrated_data = qpp.IQrotate(integrated_data, angle)
     
     # Plotting histogram
-    simplified_data = rotated_integrated_data.reshape(-1)   
-    bins_n = int(simplified_data.shape[0]/180.)
+    simplified_data = rotated_integrated_data.reshape(-1)
+    n_points = simplified_data.shape[0]
+    bins_n = int(n_points/180.)
     min_data = np.min(np.real(simplified_data))
     max_data = np.max(np.real(simplified_data))
     bins_n = int(bins_n * (x_max-x_min)/(max_data-min_data))
@@ -476,11 +532,12 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=
     xdat = np.zeros(ns.shape)
     for i in range(len(bins)-1):
         xdat[i]=0.5*(bins[i+1]+bins[i])
+    x1_guess, x2_guess = guess_x1_x2(xdat, ydat) 
     params = Parameters()
     params.add('A1', value=A1, min=A_min, max=A_max)
     params.add('A2', value=A2, min=A_min, max=A_max)
-    params.add('x1', value=x1, min=x_min, max=x_max)
-    params.add('x2', value=x2, min=x_min, max=x_max)
+    params.add('x1', value=x1_guess, min=x_min, max=x_max)
+    params.add('x2', value=x2_guess, min=x_min, max=x_max)
     params.add('sigma1', value=sigma, min=sigma_min, max=sigma_max)
     params.add('sigma2', value=sigma, min=sigma_min, max=sigma_max)
     out = minimize(residual, params, args=(xdat, ydat, double_Gaussian))
@@ -500,7 +557,7 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=
 
  
     # Calculating and plotting PSD
-    fs, PSDs = calculate_PSDs(time, data[:,:])
+    fs, PSDs = qpp.PSDs(time, data[:,:])
     # Plotting initial guess for the fit
     m = np.argmin(np.abs(fs-1e6))
     xdat = np.real(fs[1:m])
@@ -518,7 +575,9 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, x1=
     out = minimize(residual, params, args=(xdat, ydat, QPP_Lorentzian))
     Gamma = out.params["Gamma"].value
 
-     if plot:
+ 
+
+    if plot:
         plt.plot(xdat, QPP_Lorentzian(xdat, out.params), 'r-', label='fit')
     
         plt.yscale('log')
