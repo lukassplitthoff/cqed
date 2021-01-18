@@ -458,6 +458,41 @@ def guess_x1_x2(xdat, ydat, plot=False):
     return xdat[ix1], xdat[ix2]
 
 
+def guess_sigma_A(xdat, ydat, plot=False):
+    '''
+    Calculates some probably non ideal initial guess for 
+    sigma and A for a double Gaussian fit.
+    '''
+
+    M = np.max(ydat)
+    m = len(ydat)
+    m1 = 0
+    while ydat[m1]<0.2*M:
+        m1+=1
+    m2 = m-1
+    while ydat[m2]<0.2*M:
+        m2-=1   
+    
+    sigma_guess = 0.15*(xdat[m2]-xdat[m1])
+    y_max = ydat[np.argmax(ydat)]
+    A_guess = 0.5 * y_max * np.sqrt(2*np.pi*sigma_guess**2)
+        
+    if plot:
+        plt.figure(figsize=(16,10))
+        plt.plot(xdat, ydat, lw=1, c='k')
+        params = Parameters()
+        params.add('A1', value=A_guess)
+        params.add('A2', value=A_guess)
+        params.add('x1', value=0,)
+        params.add('x2', value=0)
+        params.add('sigma1', value=sigma_guess)
+        params.add('sigma2', value=sigma_guess)
+        plt.plot(xdat, double_Gaussian(xdat, params), 'k--')
+        plt.xlim([-0.006, 0.006])
+        plt.show()
+    return sigma_guess, A_guess
+
+
 def double_Gaussian(x, params):
     '''
     Double Gaussian function.
@@ -490,8 +525,9 @@ def residual(params, x, y, function):
     return y_model - y
 
 
-def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, sigma=0.005, 
-                 sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, out_bounds=0.03,  plot=True, return_x=False):
+def QPP_rates_v1(time, data, tint=40e-6, A_min=0.0, A_max=100.0,
+                 sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, 
+                 out_bounds=0.03,  plot=True, return_x=False):
     
     if plot:
         plt.figure(figsize = (12, 4))
@@ -534,14 +570,15 @@ def QPP_rates_v1(time, data, tint=40e-6, A1=2, A2=2, A_min=0.0, A_max=100.0, sig
     xdat = np.zeros(ns.shape)
     for i in range(len(bins)-1):
         xdat[i]=0.5*(bins[i+1]+bins[i])
-    x1_guess, x2_guess = guess_x1_x2(xdat, ydat) 
+    x1_guess, x2_guess = guess_x1_x2(xdat, ydat, False) 
+    sigma_guess, A_guess = guess_sigma_A(xdat, ydat, False) 
     params = Parameters()
-    params.add('A1', value=A1, min=A_min, max=A_max)
-    params.add('A2', value=A2, min=A_min, max=A_max)
+    params.add('A1', value=A_guess, min=A_min, max=A_max)
+    params.add('A2', value=A_guess, min=A_min, max=A_max)
     params.add('x1', value=x1_guess, min=x_min, max=x_max)
     params.add('x2', value=x2_guess, min=x_min, max=x_max)
-    params.add('sigma1', value=sigma, min=sigma_min, max=sigma_max)
-    params.add('sigma2', value=sigma, min=sigma_min, max=sigma_max)
+    params.add('sigma1', value=sigma_guess, min=sigma_min, max=sigma_max)
+    params.add('sigma2', value=sigma_guess, min=sigma_min, max=sigma_max)
     out = minimize(residual, params, args=(xdat, ydat, double_Gaussian))
     R = out.params["A2"].value / out.params["A1"].value
     fit_x1 = out.params["x1"].value
