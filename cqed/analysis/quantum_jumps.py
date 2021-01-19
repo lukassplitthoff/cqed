@@ -353,8 +353,6 @@ class QntmJumpTrace:
         ax_state_assign.set_ylabel('I (arb. un.)')
         ax_state_assign.legend()
 
-
-
 def calculate_PSD(ys):
     '''
     returns the PSD of a timeseries and freuency axis
@@ -502,9 +500,7 @@ def residual(params, x, y, function):
     return y_model - y
 
 
-def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
-                sigma_min=0.001, sigma_max=0.1,
-                plot=True):
+def qj_times_v1(data, n_integration=1, plot=True):
     
     if plot:
         plt.figure(figsize = (12, 4))
@@ -518,14 +514,9 @@ def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
     integrated_data = integrated_data.reshape(-1)
 
     # Rotating integrated data
-    # angle = 0
-    # for ii in range(navg):
-    #     angle += IQangle(integrated_data[ii,:])
-    # angle /= navg
-    rotated_integrated_data = QntmJumpTrace._rotate_data(integrated_data) #IQrotate(integrated_data, angle)
+    rotated_integrated_data = QntmJumpTrace._rotate_data(integrated_data)
     
     # Plotting histogram
-    # simplified_data = rotated_integrated_data.reshape(-1)
     n_points = rotated_integrated_data.shape[0]
     bins_n = int(n_points/180.)
     min_data = np.min(np.real(rotated_integrated_data))
@@ -552,12 +543,12 @@ def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
     x1_guess, x2_guess = guess_x1_x2(xdat, ydat, False) 
     sigma_guess, A_guess = guess_sigma_A(xdat, ydat, False) 
     params = Parameters()
-    params.add('A1', value=A_guess, min=A_min, max=A_max)
-    params.add('A2', value=A_guess, min=A_min, max=A_max)
+    params.add('A1', value=A_guess, min=0.0, max=5*A_guess)
+    params.add('A2', value=A_guess, min=0.0, max=5*A_guess)
     params.add('x1', value=x1_guess, min=min_data, max=max_data)
     params.add('x2', value=x2_guess, min=min_data, max=max_data)
-    params.add('sigma1', value=sigma_guess, min=sigma_min, max=sigma_max)
-    params.add('sigma2', value=sigma_guess, min=sigma_min, max=sigma_max)
+    params.add('sigma1', value=sigma_guess, min=0.05*sigma_guess, max=20*sigma_guess)
+    params.add('sigma2', value=sigma_guess, min=0.05*sigma_guess, max=20*sigma_guess)
     out = minimize(residual, params, args=(xdat, ydat, double_Gaussian))
     R = out.params["A2"].value / out.params["A1"].value
     fit_x1 = out.params["x1"].value
@@ -582,7 +573,7 @@ def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
         plt.plot(xdat, ydat, 'b-', label='data')
         
     # Fitting Lorentzian
-    Gamma_guess = 1e-4
+    Gamma_guess = 1e-4  # This is still hard coded, in general it works but we should change it
     params = Parameters()
     params.add('Gamma', value=Gamma_guess)
     params.add('a', value=Gamma_guess*np.mean(ydat[0:9]))
