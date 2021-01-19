@@ -63,6 +63,27 @@ def dbl_gaussian_guess_means(xdat, ydat):
     return xdat[ix1], xdat[ix2]
 
 
+def gaussian_guess_sigma_A(xdat, ydat, plot=False):
+    '''
+    Calculates some initial guess for
+    sigma and A for a double Gaussian fit.
+    '''
+
+    M = np.max(ydat)
+    m = len(ydat)
+    m1 = 0
+    while ydat[m1]<0.2*M:
+        m1+=1
+    m2 = m-1
+    while ydat[m2]<0.2*M:
+        m2-=1
+
+    sigma_guess = 0.15*(xdat[m2]-xdat[m1])
+    y_max = ydat[np.argmax(ydat)]
+    A_guess = 0.5 * y_max * np.sqrt(2*np.pi*sigma_guess**2)
+
+    return sigma_guess, A_guess
+
 def exp_func(x, gamma, a):
     """ Exponential function a * exp(gamma * x)
     @param x: array
