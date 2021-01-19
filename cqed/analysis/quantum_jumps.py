@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.linalg import eig
 import matplotlib.pyplot as plt
-from lmfit import minimize, Parameters
+import cqed.utils.datahandling as dh
+import cqed.utils.fit_functions as fitf
 
 
 class QntmJumpTrace:
@@ -23,6 +23,7 @@ class QntmJumpTrace:
 
         self.n_sigma_filter = 1.
         self.raw_data_rot = np.empty_like(self.raw_data)
+        self.theta = 0.
         self.raw_hist = []
         self.state_vec = np.empty_like(self.raw_data)
         self.dwell_l = []
@@ -34,57 +35,8 @@ class QntmJumpTrace:
 
         self.fitresult_gauss = None
 
-    # @staticmethod
-    # def _max_variance_angle(data):
-    #     """
-    #     Find the angle of rotation for a complex dataset, which maximizes the variance of the data along the real axis
-    #     @param data: (array) raw data assumed to be complex
-    #     @return: (float) rotation angle that maximizes the variance in the real axis.
-    #     """
-    #     i = np.real(data)
-    #     q = np.imag(data)
-    #     cov = np.cov(i, q)
-    #     a = eig(cov)
-    #     eigvecs = a[1]
-    #
-    #     if a[0][1] > a[0][0]:
-    #         eigvec1 = eigvecs[:, 0]
-    #     else:
-    #         eigvec1 = eigvecs[:, 1]
-    #
-    #     theta = np.arctan(eigvec1[0] / eigvec1[1])
-    #     return theta
-
-    # @staticmethod
-    # def _rotate_data(data):
-    #     """
-    #     Rotate the complex data by a given angle theta
-    #     @param data: complex data to be rotated
-    #     @return: rotated complex array
-    #     """
-    #
-    #     theta = QntmJumpTrace._max_variance_angle(data)
-    #     return data * np.exp(1.j * theta)
-
-    # moved to utils/fit_functions
-    # @staticmethod
-    # def _dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
-    #     """
-    #     A double gaussian distribution
-    #     @param x: x-axis
-    #     @param c1: scaling parameter for distribution 1
-    #     @param mu1: mean of first gaussian
-    #     @param sg1: variance of first gaussian
-    #     @param c2: scaling parameter for distribution 2
-    #     @param mu2: mean of second gaussian
-    #     @param sg2: variance of second gaussian
-    #     @return: array of double gaussian distribution
-    #     """
-    #     res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.))
-    #     return res
-
     @staticmethod
-    def create_hist(data, n_bins):
+    def _create_hist(data, n_bins):
         """Calculate a histogram and return an x-axis that is of same length. The numbers of the x-axis represent
          the middle of the corresponding bins
          @param data: array to histogram
@@ -111,7 +63,7 @@ class QntmJumpTrace:
         if start_param_guess is None:
             start_param_guess = [n[20], I_ax[10], I_ax[10] - I_ax[0], n[-20], I_ax[-10], I_ax[10] - I_ax[0]]
 
-        fit, conv = curve_fit(QntmJumpTrace._dbl_gaussian, I_ax, n, p0=start_param_guess, **kwargs)
+        fit, conv = curve_fit(fitf.dbl_gaussian, I_ax, n, p0=start_param_guess, **kwargs)
 
         # ensure that the negative gaussian is the first set of data
         if fit[4] < fit[1]:
@@ -167,27 +119,6 @@ class QntmJumpTrace:
 
         return state, np.array(dwell_g), np.array(dwell_e)
 
-    # moved to utils/fit_functions
-    # @staticmethod
-    # def _exp_dist(x, gamma, a):
-    #     """ Exponential distribution a * exp(-gamma * x)
-    #     @param x: array
-    #     @param gamma: relaxation rate
-    #     @param a: scaling prefactor
-    #     @return: array
-    #     """
-    #     return a * np.exp(-gamma * x)
-
-    # moved to utils/fit_functions
-    # @staticmethod
-    # def _lin_func(x, m, c):
-    #     """A simple linear function, where positive m corresponds to negative slope
-    #     @param x: x-axis
-    #     @param m: slope
-    #     @param c: offset"""
-    #
-    #     return -m * x + c
-
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
         """
@@ -207,7 +138,8 @@ class QntmJumpTrace:
         """
 
         self.n_sigma_filter = n_sigma_filter
-        self.raw_data_rot = self._rotate_data(self.raw_data)
+        self.theta = dh.max_variance_angle(self.raw_data)
+        self.raw_data_rot = dh.rotate_data(self.raw_data, self.theta)
 
         if dbl_gauss_p0 is not None:
             self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, start_param_guess=dbl_gauss_p0)
@@ -248,7 +180,7 @@ class QntmJumpTrace:
                 x_l = self.hist_dwell_l[0][inds]
                 y_l = log_yl[inds]
 
-                self.rate_lh = curve_fit(self._lin_func, x_l, y_l, p0=[0.01, 1.])
+                self.rate_lh = curve_fit(fitf.lin_func, x_l, y_l, p0=[-0.01, 1.])
 
                 # since the histogram has zeros as entries, filter those before passing to curve_fit
                 log_yh = np.log(self.hist_dwell_h[1])
@@ -256,7 +188,7 @@ class QntmJumpTrace:
                 x_h = self.hist_dwell_h[0][inds]
                 y_h = log_yh[inds]
 
-                self.rate_hl = curve_fit(self._lin_func, x_h, y_h, p0=[0.01, 1.])
+                self.rate_hl = curve_fit(fitf.lin_func, x_h, y_h, p0=[-0.01, 1.])
 
             except ValueError:
                 self.rate_lh = None
@@ -309,9 +241,9 @@ class QntmJumpTrace:
             ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], 'o', mfc='none', label='higher state')
 
             if self.rate_lh is not None:
-                ax_dwell_hist.plot(self.hist_dwell_l[0], self._exp_dist(self.hist_dwell_l[0], self.rate_lh[0][0],
+                ax_dwell_hist.plot(self.hist_dwell_l[0], fitf.exp_func(self.hist_dwell_l[0], self.rate_lh[0][0],
                                                                         np.exp(self.rate_lh[0][1])), 'k')
-                ax_dwell_hist.plot(self.hist_dwell_h[0], self._exp_dist(self.hist_dwell_h[0], self.rate_hl[0][0],
+                ax_dwell_hist.plot(self.hist_dwell_h[0], fitf.exp_func(self.hist_dwell_h[0], self.rate_hl[0][0],
                                                                         np.exp(self.rate_hl[0][1])), 'k')
 
             ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0]), np.max(self.hist_dwell_h[0])]))
@@ -337,7 +269,7 @@ class QntmJumpTrace:
         ax_trace.set_ylabel('I (arb. un.)')
         ax_histy.barh(self.raw_hist[0], self.raw_hist[1], (self.raw_hist[0][1] - self.raw_hist[0][0]) * 0.8,
                       label='rot. data')
-        ax_histy.plot(self._dbl_gaussian(self.raw_hist[0], *self.fitresult_gauss), self.raw_hist[0], 'k', label='fit')
+        ax_histy.plot(fitf.dbl_gaussian(self.raw_hist[0], *self.fitresult_gauss), self.raw_hist[0], 'k', label='fit')
         ax_histy.tick_params(direction='in', labelleft=False)
         ax_histy.set_ylim(ax_trace.get_ylim())
         ax_histy.set_xlabel('norm. occurence')
