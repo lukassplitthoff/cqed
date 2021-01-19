@@ -1,5 +1,6 @@
 """ Set of generic functions used for fitting """
 import numpy as np
+from scipy.signal import argrelextrema, savgol_filter
 
 
 def dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
@@ -17,6 +18,49 @@ def dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
     res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) \
         + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.))
     return res
+
+
+def dbl_gaussian_guess_means(xdat, ydat):
+    '''
+    Calculates initial guesses for the two means for a double Gaussian fit.
+    After smoothing the data, it first finds a local minimum to split the data
+    in two halfs, with a peak in each half. It then finds the maximum at each
+    side of the local minimum to estimate x1 and x2, the centers of the two
+    Gaussian peaks. If there is no central local minimum, it finds the maximum
+    of the data and returns it as the guess for both peaks.
+    '''
+
+    M = np.max(ydat)
+    m = len(ydat)
+    m1 = 0
+    while ydat[m1] < 0.2 * M:
+        m1 += 1
+    m2 = m - 1
+    while ydat[m2] < 0.2 * M:
+        m2 -= 1
+
+    n = 2 * int(0.1 * (m2 - m1)) + 1
+    y_smoothed = savgol_filter(ydat[m1:m2], n, 3)
+    y_smoothed = savgol_filter(y_smoothed, n, 3)
+    y_smoothed = savgol_filter(y_smoothed, n, 3)
+    ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
+    ii = ii[0]
+    if len(ii) == 0:
+        # If there is no central minimum
+        ix1 = np.argmax(ydat)
+        ix2 = ix1
+    elif len(ii) == 1:
+        # If there is just one local minimum (ideal case)
+        i = ii[0]
+        ix1 = np.argmax(ydat[0:i])
+        ix2 = i + np.argmax(ydat[i:m - 1])
+    else:
+        # If it found more than one local minimum
+        i = np.min(ii)
+        ix1 = np.argmax(ydat[0:i])
+        ix2 = i + np.argmax(ydat[i:m - 1])
+
+    return xdat[ix1], xdat[ix2]
 
 
 def exp_func(x, gamma, a):
