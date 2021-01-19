@@ -48,6 +48,7 @@ class QntmJumpTrace:
         self.rate_hl = None
         self.n_sigma_filter = 1.
         self.fitresult_gauss = None
+        self._dwellhist_guess = [-0.01, 1.] # some hardcoded guesses for the linear fit of dwell time histogram
 
     @staticmethod
     def _create_hist(data, n_bins):
@@ -63,29 +64,28 @@ class QntmJumpTrace:
         return x_axis, n
 
     @staticmethod
-    def _fit_dbl_gaussian(data, n_bins=100, start_param_guess=None, **kwargs):
-        """ Histogram an input data set, then fit a double gaussian distribution using scipy.curve_fit.
-        @param data: raw data set to fit a double gaussian distribution to
-        @param n_bins: number of bins to be used for the histogramming
+    def _fit_dbl_gaussian(xdata, ydata, start_param_guess=None, **kwargs):
+        """ Fit a double gaussian distribution using scipy.curve_fit.
+        @param xdata: (array)
+        @param ydata: (array)
         @param start_param_guess: starting parameters for the fitting algorithm, expects iterable of length 6 with
-            [amplitude1, mean1, standard deviation1, amplitude2, mean2, standard deviation1]
-        @return: array of the fit parameters
+            [amplitude1, mean1, standard deviation1, amplitude2, mean2, standard deviation1], if None
+            cqed.utils.fit_functions.dbl_gaussian_guess_means and gaussian_guess_sigma_A are used
+        @return: (tuple) (fit parameters, convergence matrix)
         """
 
-        I_ax, n = QntmJumpTrace._create_hist(data, n_bins)
-
         if start_param_guess is None:
-            mu1, mu2 = fitf.dbl_gaussian_guess_means(I_ax, n)
-            c, sig = fitf.gaussian_guess_sigma_A(I_ax, n)
+            mu1, mu2 = fitf.dbl_gaussian_guess_means(xdata, ydata)
+            c, sig = fitf.gaussian_guess_sigma_A(xdata, ydata)
             start_param_guess = [c, mu1, sig, c, mu2, sig]
 
-        fit, conv = curve_fit(fitf.dbl_gaussian, I_ax, n, p0=start_param_guess, **kwargs)
+        fit, conv = curve_fit(fitf.dbl_gaussian, xdata, ydata, p0=start_param_guess, **kwargs)
 
         # ensure that the gaussian with smaller mean is the first set of data
         if fit[4] < fit[1]:
             fit = np.array([*fit[3:], *fit[:3]])
 
-        return fit
+        return fit, conv
 
     @staticmethod
     def _latching_filter(arr, means, sigm):
@@ -157,12 +157,12 @@ class QntmJumpTrace:
         self.raw_hist = self._create_hist(self.raw_data_rot.real, n_bins)
 
         if dbl_gauss_p0 is not None:
-            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, start_param_guess=dbl_gauss_p0)
+            self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], start_param_guess=dbl_gauss_p0)
         else:
             try:
-                self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real)
+                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
             except RuntimeError:
-                self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, maxfev=int(1e4))
+                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], maxfev=int(1e4))
 
         if not override_gaussfit:
             self.state_vec, self.dwell_l, self.dwell_h = self._latching_filter(self.raw_data_rot.real,
@@ -193,7 +193,8 @@ class QntmJumpTrace:
                 x_l = self.hist_dwell_l[0][inds]
                 y_l = log_yl[inds]
 
-                self.rate_lh = curve_fit(fitf.lin_func, x_l, y_l, p0=[-0.01, 1.])
+                self.rate_lh = curve_fit(fitf.lin_func, x_l, y_l, p0=[self._dwellhist_guess[0],
+                                                                      self._dwellhist_guess[1]])
 
                 # since the histogram has zeros as entries, filter those before passing to curve_fit
                 log_yh = np.log(self.hist_dwell_h[1])
@@ -201,7 +202,8 @@ class QntmJumpTrace:
                 x_h = self.hist_dwell_h[0][inds]
                 y_h = log_yh[inds]
 
-                self.rate_hl = curve_fit(fitf.lin_func, x_h, y_h, p0=[-0.01, 1.])
+                self.rate_hl = curve_fit(fitf.lin_func, x_h, y_h, p0=[self._dwellhist_guess[0],
+                                                                      self._dwellhist_guess[1]])
 
             except ValueError:
                 self.rate_lh = None
