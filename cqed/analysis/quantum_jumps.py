@@ -355,30 +355,6 @@ class QntmJumpTrace:
 
 
 
-def IQangle(data):
-    '''
-    Calculate the rotation angle for complex data.
-    '''
-    I = np.real(data)
-    Q = np.imag(data)
-    Cov = np.cov(I,Q)
-    A = sp.linalg.eig(Cov)
-    eigvecs = A[1]
-    if A[0][1]>A[0][0]:
-        eigvec1 = eigvecs[:,0]
-    else:
-        eigvec1 = eigvecs[:,1]
-    theta = np.arctan(eigvec1[0]/eigvec1[1])
-    return theta
-
-
-def IQrotate(data, theta):
-    '''
-    Rotate complex data by an angle theta.
-    '''
-    return data*np.exp(1.j*theta)
-
-
 def calculate_PSD(ys):
     '''
     returns the PSD of a timeseries and freuency axis
@@ -527,7 +503,7 @@ def residual(params, x, y, function):
 
 
 def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
-                sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, 
+                sigma_min=0.001, sigma_max=0.1,
                 plot=True):
     
     if plot:
@@ -539,22 +515,26 @@ def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
     integrated_data = np.zeros((navg, divisors), dtype=np.complex64)
     for ii in range(navg):
         integrated_data[ii,:] = np.mean(data[ii,0:divisors*n_integration].reshape(-1, n_integration), axis=1)
+    integrated_data = integrated_data.reshape(-1)
 
     # Rotating integrated data
-    angle = 0
-    for ii in range(navg):
-        angle += IQangle(integrated_data[ii,:])
-    angle /= navg
-    rotated_integrated_data = IQrotate(integrated_data, angle)
+    # angle = 0
+    # for ii in range(navg):
+    #     angle += IQangle(integrated_data[ii,:])
+    # angle /= navg
+    rotated_integrated_data = QntmJumpTrace._rotate_data(integrated_data) #IQrotate(integrated_data, angle)
     
     # Plotting histogram
-    simplified_data = rotated_integrated_data.reshape(-1)
-    n_points = simplified_data.shape[0]
+    # simplified_data = rotated_integrated_data.reshape(-1)
+    n_points = rotated_integrated_data.shape[0]
     bins_n = int(n_points/180.)
-    min_data = np.min(np.real(simplified_data))
-    max_data = np.max(np.real(simplified_data))
+    min_data = np.min(np.real(rotated_integrated_data))
+    max_data = np.max(np.real(rotated_integrated_data))
+    range_data = max_data - min_data
+    x_max = max_data + 10*range_data
+    x_min = min_data - 10*range_data
     bins_n = int(bins_n * (x_max-x_min)/(max_data-min_data))
-    ns, bins = np.histogram(np.real(simplified_data), bins=bins_n, range=(x_min, x_max))
+    ns, bins = np.histogram(np.real(rotated_integrated_data), bins=bins_n, range=(x_min, x_max))
     xdat = np.zeros(ns.shape)
     ydat = ns
     for i in range(len(bins)-1):
@@ -574,8 +554,8 @@ def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
     params = Parameters()
     params.add('A1', value=A_guess, min=A_min, max=A_max)
     params.add('A2', value=A_guess, min=A_min, max=A_max)
-    params.add('x1', value=x1_guess, min=x_min, max=x_max)
-    params.add('x2', value=x2_guess, min=x_min, max=x_max)
+    params.add('x1', value=x1_guess, min=min_data, max=max_data)
+    params.add('x2', value=x2_guess, min=min_data, max=max_data)
     params.add('sigma1', value=sigma_guess, min=sigma_min, max=sigma_max)
     params.add('sigma2', value=sigma_guess, min=sigma_min, max=sigma_max)
     out = minimize(residual, params, args=(xdat, ydat, double_Gaussian))
