@@ -66,24 +66,25 @@ class QntmJumpTrace:
     #     theta = QntmJumpTrace._max_variance_angle(data)
     #     return data * np.exp(1.j * theta)
 
-    @staticmethod
-    def _dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
-        """
-        A double gaussian distribution
-        @param x: x-axis
-        @param c1: scaling parameter for distribution 1
-        @param mu1: mean of first gaussian
-        @param sg1: variance of first gaussian
-        @param c2: scaling parameter for distribution 2
-        @param mu2: mean of second gaussian
-        @param sg2: variance of second gaussian
-        @return: array of double gaussian distribution
-        """
-        res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.))
-        return res
+    # moved to utils/fit_functions
+    # @staticmethod
+    # def _dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
+    #     """
+    #     A double gaussian distribution
+    #     @param x: x-axis
+    #     @param c1: scaling parameter for distribution 1
+    #     @param mu1: mean of first gaussian
+    #     @param sg1: variance of first gaussian
+    #     @param c2: scaling parameter for distribution 2
+    #     @param mu2: mean of second gaussian
+    #     @param sg2: variance of second gaussian
+    #     @return: array of double gaussian distribution
+    #     """
+    #     res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.))
+    #     return res
 
     @staticmethod
-    def _create_hist(data, n_bins):
+    def create_hist(data, n_bins):
         """Calculate a histogram and return an x-axis that is of same length. The numbers of the x-axis represent
          the middle of the corresponding bins
          @param data: array to histogram
@@ -166,24 +167,26 @@ class QntmJumpTrace:
 
         return state, np.array(dwell_g), np.array(dwell_e)
 
-    @staticmethod
-    def _exp_dist(x, gamma, a):
-        """ Exponential distribution a * exp(-gamma * x)
-        @param x: array
-        @param gamma: relaxation rate
-        @param a: scaling prefactor
-        @return: array
-        """
-        return a * np.exp(-gamma * x)
+    # moved to utils/fit_functions
+    # @staticmethod
+    # def _exp_dist(x, gamma, a):
+    #     """ Exponential distribution a * exp(-gamma * x)
+    #     @param x: array
+    #     @param gamma: relaxation rate
+    #     @param a: scaling prefactor
+    #     @return: array
+    #     """
+    #     return a * np.exp(-gamma * x)
 
-    @staticmethod
-    def _lin_func(x, m, c):
-        """A simple linear function, where positive m corresponds to negative slope
-        @param x: x-axis
-        @param m: slope
-        @param c: offset"""
-
-        return -m * x + c
+    # moved to utils/fit_functions
+    # @staticmethod
+    # def _lin_func(x, m, c):
+    #     """A simple linear function, where positive m corresponds to negative slope
+    #     @param x: x-axis
+    #     @param m: slope
+    #     @param c: offset"""
+    #
+    #     return -m * x + c
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
