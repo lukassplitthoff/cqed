@@ -63,6 +63,8 @@ def setup_linear_sweep(
         fstop = station.vna.S21.stop()
     if npts is None and fstep is not None:
         npts = int((fstop - fstart) / fstep)
+    else:
+        npts = vna_trace.npts()
     if navgs is None:
         navgs = vna_trace.avg()
     if bw is None:
@@ -74,7 +76,7 @@ def setup_linear_sweep(
 
     vna_trace.start(int(fstart))
     vna_trace.stop(int(fstop))
-    vna_trace.npts(int((fstop - fstart) / fstep))
+    vna_trace.npts(npts)
     vna_trace.bandwidth(bw)
     vna_trace.power(pwr)
     vna_trace.avg(navgs)
@@ -209,7 +211,7 @@ def measure_multiple_linear_sweeps(
             delay = None
 
         fun_str += "cvna.measure_linear_sweep(suffix={}, fstart={}, fstop={}, fstep={}, npts={}, center={}, span={}, bw={}, navgs={}, pwr={}, electrical_delay={})+".format(
-            fstart, fstop, fstep, npts, center, span, bw, navgs, pwr, delay, ii
+            ii, fstart, fstop, fstep, npts, center, span, bw, navgs, pwr, delay
         )
     fun_str = fun_str[:-1]
     return fun_str
@@ -467,6 +469,7 @@ def measure_PSD_averaged(averages=1, suffix='', **kwargs):
             # while this seems redundant as measure_cw_sweep can also recognise if there are kwargs
             # we put the setting up here outside the for loop to save time as cw_sweeps can be very short
             setup_CW_sweep(station=station, **kwargs)
+            
         bw = station.vna.S21.bandwidth()
         sweep_time = station.vna.S21.sweep_time()
         npts = station.vna.S21.npts()
