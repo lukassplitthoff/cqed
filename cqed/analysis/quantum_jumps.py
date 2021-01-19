@@ -378,16 +378,15 @@ def IQrotate(data, theta):
     return data*np.exp(1.j*theta)
 
 
-def calculate_PSD(ts, ys):
+def calculate_PSD(ys):
     '''
     returns the PSD of a timeseries and freuency axis
     '''
     ys_fft = np.abs(np.fft.fft(ys))**2
     
-    dt = np.diff(ts)[0]
-    fmax = 1. / (dt)
-    df = 1. / (len(ts)*dt)
-    pts_fft = len(ts) / 2
+    fmax = 1.
+    df = 1. / len(ys)
+    pts_fft = len(ys) / 2
     fs1 = np.linspace(0, fmax / 2.-df, pts_fft)
     fs2 = np.linspace(fmax / 2., df, pts_fft)
     fs = np.append(fs1, -fs2)
@@ -395,7 +394,7 @@ def calculate_PSD(ts, ys):
     return fs, ys_fft
 
 
-def calculate_PSDs(ts, ys_array):
+def calculate_PSDs(ys_array):
     '''
     returns the averaged PSD of an array of timeseries with freuency axis
     '''
@@ -403,9 +402,10 @@ def calculate_PSDs(ts, ys_array):
     ys_fft = 0.*ys_array[0,:].real
     for ys in ys_array:
         
-        fs, ys_fft_i = calculate_PSD(ts, ys) 
+        fs, ys_fft_i = calculate_PSD(ys) 
         ys_fft += ys_fft_i/shp[0]
     return fs, ys_fft
+
 
 def guess_x1_x2(xdat, ydat, plot=False):
     '''
@@ -525,21 +525,12 @@ def residual(params, x, y, function):
     return y_model - y
 
 
-def QPP_rates_v1(time, data, tint=40e-6, A_min=0.0, A_max=100.0,
-                 sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, 
-                 out_bounds=0.03,  plot=True, return_x=False):
+def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
+                sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, 
+                out_bounds=0.03,  plot=True):
     
     if plot:
         plt.figure(figsize = (12, 4))
-    
-    # Integrating data
-    navg = data.shape[0]
-    tstep = np.diff(time)[0]
-    nelements = int(tint/tstep)
-    divisors = int(data[0,:,].size//nelements)
-    integrated_data = np.zeros((navg, divisors), dtype=np.complex64)
-    for ii in range(navg):
-        integrated_data[ii,:] = np.mean(data[ii,0:divisors*nelements].reshape(-1, nelements), axis=1)
     
     # Rotating integrated data
     angle = 0
@@ -592,7 +583,7 @@ def QPP_rates_v1(time, data, tint=40e-6, A_min=0.0, A_max=100.0,
         plt.ylabel("Counts")
  
     # Calculating and plotting PSD
-    fs, PSDs = qpp.PSDs(time, data[:,:])
+    fs, PSDs = calculate_PSDs(integrated_data)
     # Plotting initial guess for the fit
     m = np.argmin(np.abs(fs-1e6))
     xdat = np.real(fs[1:m])
@@ -602,7 +593,7 @@ def QPP_rates_v1(time, data, tint=40e-6, A_min=0.0, A_max=100.0,
         plt.plot(xdat, ydat, 'b-', label='data')
         
     # Fitting Lorentzian
-    Gamma_guess = 3e3
+    Gamma_guess = 1e-3
     params = Parameters()
     params.add('Gamma', value=Gamma_guess)
     params.add('a', value=Gamma_guess*np.mean(ydat[0:9]))
@@ -621,7 +612,6 @@ def QPP_rates_v1(time, data, tint=40e-6, A_min=0.0, A_max=100.0,
     
     Gamma1 = 2*Gamma/(1+R)
     Gamma2 = 2*R*Gamma/(1+R)
-    if not return_x:
-        return 1/Gamma1, 1/Gamma2
-    else:    
-        return 1/Gamma1, 1/Gamma2, fit_x1, fit_x2
+
+
+    return 1/Gamma1, 1/Gamma2
