@@ -526,15 +526,21 @@ def residual(params, x, y, function):
     return y_model - y
 
 
-def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
+def qj_times_v1(data, n_integration=1, A_min=0.0, A_max=100.0,
                 sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, 
                 plot=True):
     
     if plot:
         plt.figure(figsize = (12, 4))
     
+    # Integrating data
+    navg = data.shape[0]
+    divisors = int(data[0,:,].size//n_integration)
+    integrated_data = np.zeros((navg, divisors), dtype=np.complex64)
+    for ii in range(navg):
+        integrated_data[ii,:] = np.mean(data[ii,0:divisors*n_integration].reshape(-1, n_integration), axis=1)
+
     # Rotating integrated data
-    navg = integrated_data.shape[0]
     angle = 0
     for ii in range(navg):
         angle += IQangle(integrated_data[ii,:])
@@ -585,9 +591,10 @@ def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
         plt.ylabel("Counts")
  
     # Calculating and plotting PSD
-    fs, PSDs = calculate_PSDs(integrated_data)
+    fs, PSDs = calculate_PSDs(data)
+    
     # Plotting initial guess for the fit
-    m = int(len(fs)/2)-1#np.argmin(np.abs(fs-1e6))
+    m = np.argmin(np.abs(fs-0.8e-1)) # This is hard coded, we should change this but I'm not sure by what
     xdat = np.real(fs[1:m])
     ydat = PSDs[1:m]
     if plot:
@@ -595,7 +602,7 @@ def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
         plt.plot(xdat, ydat, 'b-', label='data')
         
     # Fitting Lorentzian
-    Gamma_guess = 1e-3
+    Gamma_guess = 1e-4
     params = Parameters()
     params.add('Gamma', value=Gamma_guess)
     params.add('a', value=Gamma_guess*np.mean(ydat[0:9]))
@@ -615,5 +622,8 @@ def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
     Gamma1 = 2*Gamma/(1+R)
     Gamma2 = 2*R*Gamma/(1+R)
 
+    if fit_x1 > fit_x2:
+        return 1/Gamma2, 1/Gamma1
 
-    return 1/Gamma1, 1/Gamma2
+    else:
+        return 1/Gamma1, 1/Gamma2
