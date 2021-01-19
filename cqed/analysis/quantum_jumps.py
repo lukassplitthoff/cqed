@@ -527,7 +527,7 @@ def residual(params, x, y, function):
 
 def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
                 sigma_min=0.001, sigma_max=0.1, x_min=-0.05, x_max=0.05, 
-                out_bounds=0.03,  plot=True):
+                plot=True):
     
     if plot:
         plt.figure(figsize = (12, 4))
