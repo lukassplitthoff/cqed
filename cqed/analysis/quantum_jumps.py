@@ -12,13 +12,16 @@ import scipy as sp
 
 class QntmJumpTrace:
 
-    def __init__(self, data, data_complex=True):
+    def __init__(self, data, dt, data_complex=True, theta=None):
         """
         Class to analyse quantum jumps traces and extract transition
         rates between the identified states
 
-        @param data: either a complex 1d-array, or a tuple (real, imag)
+        @param data: either a complex 2d-array, or a tuple of 2d arrays (real, imag)
+        @param dt: time between two data points in seconds
         @param data_complex: bool, default=True
+        @param theta: angle to rotate the raw input data. If not specified the data is rotated for max variance
+            in the real axis
         """
 
         if data_complex:
@@ -26,9 +29,15 @@ class QntmJumpTrace:
         else:
             self.raw_data = data[0] + 1.j * data[1]
 
-        self.n_sigma_filter = 1.
-        self.raw_data_rot = np.empty_like(self.raw_data)
-        self.theta = 0.
+        if theta is None:
+            self.theta = dh.max_variance_angle(self.raw_data)
+        else:
+            self.theta = theta
+
+        self.raw_data_rot = dh.rotate_data(self.raw_data, self.theta)
+        self.dt = dt
+
+        # Attributes for latching filter pipeline
         self.raw_hist = []
         self.state_vec = np.empty_like(self.raw_data)
         self.dwell_l = []
@@ -37,7 +46,7 @@ class QntmJumpTrace:
         self.hist_dwell_h = []
         self.rate_lh = None
         self.rate_hl = None
-
+        self.n_sigma_filter = 1.
         self.fitresult_gauss = None
 
     @staticmethod
@@ -66,11 +75,13 @@ class QntmJumpTrace:
         I_ax, n = QntmJumpTrace._create_hist(data, n_bins)
 
         if start_param_guess is None:
-            start_param_guess = [n[20], I_ax[10], I_ax[10] - I_ax[0], n[-20], I_ax[-10], I_ax[10] - I_ax[0]]
+            mu1, mu2 = fitf.dbl_gaussian_guess_means(I_ax, n)
+            c, sig = fitf.gaussian_guess_sigma_A(I_ax, n)
+            start_param_guess = [c, mu1, sig, c, mu2, sig]
 
         fit, conv = curve_fit(fitf.dbl_gaussian, I_ax, n, p0=start_param_guess, **kwargs)
 
-        # ensure that the negative gaussian is the first set of data
+        # ensure that the gaussian with smaller mean is the first set of data
         if fit[4] < fit[1]:
             fit = np.array([*fit[3:], *fit[:3]])
 
@@ -143,8 +154,7 @@ class QntmJumpTrace:
         """
 
         self.n_sigma_filter = n_sigma_filter
-        self.theta = dh.max_variance_angle(self.raw_data)
-        self.raw_data_rot = dh.rotate_data(self.raw_data, self.theta)
+        self.raw_hist = self._create_hist(self.raw_data_rot.real, n_bins)
 
         if dbl_gauss_p0 is not None:
             self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, start_param_guess=dbl_gauss_p0)
@@ -153,8 +163,6 @@ class QntmJumpTrace:
                 self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real)
             except RuntimeError:
                 self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_data_rot.real, maxfev=int(1e4))
-
-        self.raw_hist = self._create_hist(self.raw_data_rot.real, n_bins)
 
         if not override_gaussfit:
             self.state_vec, self.dwell_l, self.dwell_h = self._latching_filter(self.raw_data_rot.real,
