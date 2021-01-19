@@ -6,6 +6,7 @@ import matplotlib.mlab as mlab
 from lmfit import minimize, Parameters
 from scipy.signal import argrelextrema
 from scipy.signal import savgol_filter
+import scipy as sp
 
 
 class QntmJumpTrace:
@@ -533,11 +534,12 @@ def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
         plt.figure(figsize = (12, 4))
     
     # Rotating integrated data
+    navg = integrated_data.shape[0]
     angle = 0
     for ii in range(navg):
-        angle += qpp.IQangle(integrated_data[ii,:])
+        angle += IQangle(integrated_data[ii,:])
     angle /= navg
-    rotated_integrated_data = qpp.IQrotate(integrated_data, angle)
+    rotated_integrated_data = IQrotate(integrated_data, angle)
     
     # Plotting histogram
     simplified_data = rotated_integrated_data.reshape(-1)
@@ -585,7 +587,7 @@ def qj_times_v1(integrated_data, A_min=0.0, A_max=100.0,
     # Calculating and plotting PSD
     fs, PSDs = calculate_PSDs(integrated_data)
     # Plotting initial guess for the fit
-    m = np.argmin(np.abs(fs-1e6))
+    m = int(len(fs)/2)-1#np.argmin(np.abs(fs-1e6))
     xdat = np.real(fs[1:m])
     ydat = PSDs[1:m]
     if plot:
