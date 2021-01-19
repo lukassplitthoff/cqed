@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.linalg import eig
 import matplotlib.pyplot as plt
+from lmfit import minimize, Parameters
 
 
 class QntmJumpTrace:
@@ -33,37 +34,37 @@ class QntmJumpTrace:
 
         self.fitresult_gauss = None
 
-    @staticmethod
-    def _max_variance_angle(data):
-        """
-        Find the angle of rotation for a complex dataset, which maximizes the variance of the data along the real axis
-        @param data: (array) raw data assumed to be complex
-        @return: (float) rotation angle that maximizes the variance in the real axis.
-        """
-        i = np.real(data)
-        q = np.imag(data)
-        cov = np.cov(i, q)
-        a = eig(cov)
-        eigvecs = a[1]
+    # @staticmethod
+    # def _max_variance_angle(data):
+    #     """
+    #     Find the angle of rotation for a complex dataset, which maximizes the variance of the data along the real axis
+    #     @param data: (array) raw data assumed to be complex
+    #     @return: (float) rotation angle that maximizes the variance in the real axis.
+    #     """
+    #     i = np.real(data)
+    #     q = np.imag(data)
+    #     cov = np.cov(i, q)
+    #     a = eig(cov)
+    #     eigvecs = a[1]
+    #
+    #     if a[0][1] > a[0][0]:
+    #         eigvec1 = eigvecs[:, 0]
+    #     else:
+    #         eigvec1 = eigvecs[:, 1]
+    #
+    #     theta = np.arctan(eigvec1[0] / eigvec1[1])
+    #     return theta
 
-        if a[0][1] > a[0][0]:
-            eigvec1 = eigvecs[:, 0]
-        else:
-            eigvec1 = eigvecs[:, 1]
-
-        theta = np.arctan(eigvec1[0] / eigvec1[1])
-        return theta
-
-    @staticmethod
-    def _rotate_data(data):
-        """
-        Rotate the complex data by a given angle theta
-        @param data: complex data to be rotated
-        @return: rotated complex array
-        """
-
-        theta = QntmJumpTrace._max_variance_angle(data)
-        return data * np.exp(1.j * theta)
+    # @staticmethod
+    # def _rotate_data(data):
+    #     """
+    #     Rotate the complex data by a given angle theta
+    #     @param data: complex data to be rotated
+    #     @return: rotated complex array
+    #     """
+    #
+    #     theta = QntmJumpTrace._max_variance_angle(data)
+    #     return data * np.exp(1.j * theta)
 
     @staticmethod
     def _dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
