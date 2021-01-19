@@ -478,11 +478,6 @@ def measure_PSD_averaged(averages=1, suffix='', **kwargs):
     def measurement_function(d):
         station = d["STATION"]
 
-<<<<<<< HEAD
-        for ii in range(averages):
-            vna_data = return_cw_sweep(
-                setup_vna=True, cw_frequency=f0, bw=bandwidth, t_int=t_int, npts=points, **kwargs)(d)
-=======
         if bool(kwargs):
             setup_CW_sweep(station=station, **kwargs)
         bw = station.vna.S21.bandwidth()
@@ -494,7 +489,6 @@ def measure_PSD_averaged(averages=1, suffix='', **kwargs):
 
         for ii in range(int(averages)):
             vna_data = return_cw_sweep()(d)
->>>>>>> 9241dbb2f565842f976fed04cc90363c121c98ff
             I = vna_data[1]
             Q = vna_data[2]
             fftfreq = np.fft.fftfreq(n, d=step)
