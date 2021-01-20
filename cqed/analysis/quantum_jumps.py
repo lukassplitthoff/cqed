@@ -12,7 +12,7 @@ import scipy as sp
 
 class QntmJumpTrace:
 
-    def __init__(self, data, dt, data_complex=True, theta=None):
+    def __init__(self, data, dt, data_complex=True, theta=None, n_integration=1):
         """
         Class to analyse quantum jumps traces and extract transition
         rates between the identified states
@@ -40,32 +40,53 @@ class QntmJumpTrace:
                 self.raw_data = self.raw_data.T
                 self.dat_dims = (self.dat_dims[1], self.dat_dims[0])
 
+        # Integrating data
+        if n_integration > 1:
+            divisors = int(self.raw_data[0, :, ].size // n_integration)
+            self.integrated_data = np.zeros((self.dat_dims[0], divisors), dtype=np.complex64)
+            for ii in range(self.dat_dims[0]):
+                self.integrated_data[ii, :] = np.mean(self.raw_data[ii, 0:divisors * n_integration].reshape(-1, n_integration), axis=1)
+
+            self.integrated_data = self.integrated_data.reshape(-1)
+        else:
+            self.integrated_data = self.raw_data
+
+        # rotate the data for max variance in the real axis
         if theta is None:
             thetas = np.zeros(self.dat_dims[0])
             for i in range(self.dat_dims[0]):
-                thetas[i] = dh.max_variance_angle(self.raw_data[i])
+                thetas[i] = dh.max_variance_angle(self.integrated_data[i])
             self.theta = np.mean(thetas)
         else:
             self.theta = theta
 
         self.raw_data_rot = np.zeros_like(self.raw_data, dtype=complex)
+        self.integrated_data_rot = np.zeros_like(self.integrated_data, dtype=complex)
+
         for i in range(self.dat_dims[0]):
             self.raw_data_rot[i] = dh.rotate_data(self.raw_data[i], self.theta)
+            self.integrated_data_rot[i] = dh.rotate_data(self.integrated_data[i], self.theta)
 
         self.dt = dt
 
-        # Attributes for latching filter pipeline
+        # attributes for latching filter pipeline
         self.raw_hist = []
         self.state_vec = np.empty_like(self.raw_data)
         self.dwell_l = []
         self.dwell_h = []
         self.hist_dwell_l = np.empty((self.dat_dims[0], 2), dtype=object)
         self.hist_dwell_h = np.empty((self.dat_dims[0], 2), dtype=object)
-        self.rate_lh = np.empty((self.dat_dims[0], 2))
-        self.rate_hl = np.empty((self.dat_dims[0], 2))
+        self.rate_lh = np.zeros((self.dat_dims[0], 2), dtype=float)
+        self.rate_hl = np.zeros((self.dat_dims[0], 2), dtype=float)
         self.n_sigma_filter = 1.
         self.fitresult_gauss = None
         self._dwellhist_guess = [-0.01, 1.] # some hardcoded guesses for the linear fit of dwell time histogram
+
+        # attributes for PSD pipeline
+        self.ys_fft = np.zeros(self.dat_dims[1])
+        self.fs = None
+        self.rate_lh_psd = None
+        self.rate_hl_psd = None
 
     @staticmethod
     def _create_hist(data, n_bins):
@@ -158,7 +179,7 @@ class QntmJumpTrace:
         then fit a double gaussian distribution
         """
 
-        self.raw_hist = self._create_hist(self.raw_data_rot.real.flatten(), n_bins)
+        self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins)
 
         if dbl_gauss_p0 is not None:
             self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
@@ -168,8 +189,6 @@ class QntmJumpTrace:
                 self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
             except RuntimeError:
                 self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], maxfev=int(1e4))
-
-
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
@@ -250,6 +269,7 @@ class QntmJumpTrace:
                 self.rate_lh[i] = np.array([np.nan, np.nan])
                 self.rate_hl[i] = np.array([np.nan, np.nan])
 
+        # rescale the rates to units of Hz
         self.rate_lh[:, 0] /= self.dt
         self.rate_hl[:, 0] /= self.dt
 
@@ -278,37 +298,37 @@ class QntmJumpTrace:
         ax_histy = plt.axes(dim_ax_histy)
         ax_state_assign = plt.axes(dim_ax_state_assign)
 
-        ax_raw.hist2d(self.raw_data.real, self.raw_data.imag, bins=50)
-        ax_raw.axis('equal')
-        ax_raw.set_title('raw data')
-        ax_raw.set_xlabel('I (arb. un.)')
-        ax_raw.set_ylabel('Q (arb. un.)')
+        # ax_raw.hist2d(self.raw_data.real, self.raw_data.imag, bins=50)
+        # ax_raw.axis('equal')
+        # ax_raw.set_title('raw data')
+        # ax_raw.set_xlabel('I (arb. un.)')
+        # ax_raw.set_ylabel('Q (arb. un.)')
+        #
+        # ax_rot.hist2d(self.raw_data_rot.real, self.raw_data_rot.imag, bins=50)
+        # ax_rot.axis('equal')
+        # ax_rot.set_title('rotated data')
+        # ax_rot.set_xlabel('I (arb. un.)')
+        # ax_rot.set_ylabel('Q (arb. un.)')
 
-        ax_rot.hist2d(self.raw_data_rot.real, self.raw_data_rot.imag, bins=50)
-        ax_rot.axis('equal')
-        ax_rot.set_title('rotated data')
-        ax_rot.set_xlabel('I (arb. un.)')
-        ax_rot.set_ylabel('Q (arb. un.)')
-
-        if self.hist_dwell_h is None:
-            pass
-        else:
-            ax_dwell_hist.plot(self.hist_dwell_l[0], self.hist_dwell_l[1], 'o', mfc='none', label='low state')
-            ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], 'o', mfc='none', label='higher state')
-
-            if self.rate_lh is not None:
-                ax_dwell_hist.plot(self.hist_dwell_l[0], fitf.exp_func(self.hist_dwell_l[0], self.rate_lh[0][0],
-                                                                        np.exp(self.rate_lh[0][1])), 'k')
-                ax_dwell_hist.plot(self.hist_dwell_h[0], fitf.exp_func(self.hist_dwell_h[0], self.rate_hl[0][0],
-                                                                        np.exp(self.rate_hl[0][1])), 'k')
-
-            ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0]), np.max(self.hist_dwell_h[0])]))
-
-        ax_dwell_hist.set_yscale('log')
-        ax_dwell_hist.set_title('histogram of dwell times')
-        ax_dwell_hist.set_ylabel('norm. occurence')
-        ax_dwell_hist.set_xlabel('dwell time')
-        ax_dwell_hist.legend()
+        # if self.hist_dwell_h is None:
+        #     pass
+        # else:
+        #     ax_dwell_hist.plot(self.hist_dwell_l[0], self.hist_dwell_l[1], 'o', mfc='none', label='low state')
+        #     ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], 'o', mfc='none', label='higher state')
+        #
+        #     if self.rate_lh is not None:
+        #         ax_dwell_hist.plot(self.hist_dwell_l[0], fitf.exp_func(self.hist_dwell_l[0], self.rate_lh[0][0],
+        #                                                                 np.exp(self.rate_lh[0][1])), 'k')
+        #         ax_dwell_hist.plot(self.hist_dwell_h[0], fitf.exp_func(self.hist_dwell_h[0], self.rate_hl[0][0],
+        #                                                                 np.exp(self.rate_hl[0][1])), 'k')
+        #
+        #     ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0]), np.max(self.hist_dwell_h[0])]))
+        #
+        # ax_dwell_hist.set_yscale('log')
+        # ax_dwell_hist.set_title('histogram of dwell times')
+        # ax_dwell_hist.set_ylabel('norm. occurence')
+        # ax_dwell_hist.set_xlabel('dwell time')
+        # ax_dwell_hist.legend()
 
         ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss[1] - self.n_sigma_filter * self.fitresult_gauss[2],
                               self.fitresult_gauss[1] + self.n_sigma_filter * self.fitresult_gauss[2], alpha=0.4, color='tab:orange')
@@ -316,7 +336,7 @@ class QntmJumpTrace:
         ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss[4] - self.n_sigma_filter * self.fitresult_gauss[5],
                               self.fitresult_gauss[4] + self.n_sigma_filter * self.fitresult_gauss[5], alpha=0.4, color='tab:green')
         ax_trace.axhline(self.fitresult_gauss[4], ls='dashed', color='tab:green')
-        ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot.real[:400], 'k.-', label='real rotated data')
+        ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
         ax_trace.set_xlim(-1, 401)
         ax_trace.set_ylim(self.fitresult_gauss[1] - 3 * self.fitresult_gauss[2],
                           self.fitresult_gauss[4] + 3 * self.fitresult_gauss[5])
@@ -331,14 +351,77 @@ class QntmJumpTrace:
         ax_histy.set_xlabel('norm. occurence')
         ax_histy.set_title('histogram rot. data')
         ax_histy.legend()
+        #
+        # ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[:500], 'k.-', label='real rotated data')
+        # ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[:500] * (np.abs(self.fitresult_gauss[1])
+        #                                                                     + self.fitresult_gauss[4])
+        #                                             + self.fitresult_gauss[1]), color='red', label='state assignment')
+        # ax_state_assign.set_xlabel('timestep')
+        # ax_state_assign.set_ylabel('I (arb. un.)')
+        # ax_state_assign.legend()
 
-        ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[:500], 'k.-', label='real rotated data')
-        ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[:500] * (np.abs(self.fitresult_gauss[1])
-                                                                            + self.fitresult_gauss[4])
-                                                    + self.fitresult_gauss[1]), color='red', label='state assignment')
-        ax_state_assign.set_xlabel('timestep')
-        ax_state_assign.set_ylabel('I (arb. un.)')
-        ax_state_assign.legend()
+    @staticmethod
+    def _calculate_PSD(ys):
+        '''
+        returns the PSD of a timeseries and freuency axis
+        '''
+        ys_fft = np.abs(np.fft.fft(ys)) ** 2
+
+        fmax = 1.
+        df = 1. / len(ys)
+        pts_fft = len(ys) / 2
+        fs1 = np.linspace(0, fmax / 2. - df, pts_fft)
+        fs2 = np.linspace(fmax / 2., df, pts_fft)
+        fs = np.append(fs1, -fs2)
+        # print(len(fs), len(ys_fft))
+        return fs, ys_fft
+
+    def psd_pipeline(self, n_bins=100, dbl_gauss_p0=None, m_guess=0.8e-1, gamma_guess=1e-4):
+        """
+        Perform the analysis of time traces using a fit of double gaussian and a fit of a Lorentzian to the PSD
+        to extract transition rates
+        @param n_integration: (int) how many consecutive datapoints of the raw input data shall be averaged for the
+        histogram to extract the double gaussians
+        """
+
+        if self.fitresult_gauss is None:
+            self._double_gauss_routine(n_bins, dbl_gauss_p0)
+
+        # R = out.params["A2"].value / out.params["A1"].value
+        #TODO: does it have to be this way or could it also be the inverse?
+        R = self.fitresult_gauss[3] / self.fitresult_gauss[0]
+
+        # Calculating and plotting PSD
+        for i in range(self.dat_dims[0]):
+            fs, ys_fft_i  = self._calculate_PSD(self.integrated_data_rot[i])
+            self.ys_fft += ys_fft_i/self.dat_dims[0]
+        self.fs = fs
+
+        # Plotting initial guess for the fit
+        m = np.argmin(np.abs(fs - m_guess))  #TODO: This is semi-hard coded
+        xdat = np.real(self.fs[1:m])
+        ydat = self.ys_fft[1:m]
+
+        # Fitting Lorentzian
+        params = Parameters()
+        params.add('Gamma', value=gamma_guess)
+        params.add('a', value=gamma_guess * np.mean(ydat[0:9]))
+        params.add('b', value=np.mean(ydat[-10:-1]))
+
+        out = minimize(fitf.residual, params, args=(xdat, ydat, fitf.QPP_Lorentzian))
+        Gamma = out.params["Gamma"].value
+
+        Gamma1 = 2 * Gamma / (1 + R)
+        Gamma2 = 2 * R * Gamma / (1 + R)
+
+        if self.fitresult_gauss[1] > self.fitresult_gauss[4]:
+            self.rate_lh_psd = Gamma2/self.dt
+            self.rate_hl_psd = Gamma1/self.dt
+
+        else:
+            self.rate_lh_psd = Gamma1/self.dt
+            self.rate_hl_psd = Gamma2/self.dt
+
 
 def calculate_PSD(ys):
     '''
@@ -501,7 +584,8 @@ def qj_times_v1(data, n_integration=1, plot=True):
     integrated_data = integrated_data.reshape(-1)
 
     # Rotating integrated data
-    rotated_integrated_data = QntmJumpTrace._rotate_data(integrated_data)
+    theta = dh.max_variance_angle(integrated_data)
+    rotated_integrated_data = dh.rotate_data(integrated_data, theta)
 
     # Plotting histogram
     n_points = rotated_integrated_data.shape[0]
