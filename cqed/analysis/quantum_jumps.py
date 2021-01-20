@@ -437,6 +437,7 @@ class QntmJumpTrace:
         m = np.argmin(np.abs(fs - m_guess))  #TODO: This is semi-hard coded
         xdat = np.real(self.fs[1:m])
         ydat = self.ys_fft[1:m]
+        self._psd_m = m #save it just for plotting later
 
         # Fitting Lorentzian
         params = Parameters()
@@ -472,9 +473,12 @@ class QntmJumpTrace:
         axes[0].set_xlabel('I (arb. un.)')
         axes[0].set_ylabel('normalized counts')
 
-        inds = np.where(self.fs >= 0.)[0]
+        inds = np.where(self.fs >= 0)[0]
         axes[1].plot(self.fs[inds], self.ys_fft[inds], 'b-', label='data')
-        axes[1].plot(self.fs[inds], fitf.QPP_Lorentzian(self.fs[inds], self.fitresult_lorentzian.params), 'r-', label='fit')
+        axes[1].plot(self.fs[1:self._psd_m], fitf.QPP_Lorentzian(self.fs[1:self._psd_m],
+                                                                 self.fitresult_lorentzian.params), 'r-', label='fit')
+        axes[1].axvline(self.fs[self._psd_m], ls='dashed', color='black', label='cutoff for fit')
+        axes[1].axvline(self.fs[1], ls='dashed', color='black')
         axes[1].set_yscale('log')
         axes[1].set_xlabel('Frequency (Hz)')
         axes[1].set_xscale('log')
@@ -682,6 +686,7 @@ def qj_times_v1(data, bins_n, n_integration=1, plot=True):
     R = out.params["A2"].value / out.params["A1"].value
     fit_x1 = out.params["x1"].value
     fit_x2 = out.params["x2"].value
+    print(fit_x1, fit_x2, R)
     if plot:
         plt.plot(xdat, double_Gaussian(xdat, out.params), 'r-', lw=2, label='fit')
         plt.vlines([fit_x1, fit_x2], ymin=0, ymax=np.max(ydat), colors='r')
