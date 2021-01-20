@@ -48,9 +48,12 @@ class QntmJumpTrace:
             for ii in range(self.dat_dims[0]):
                 self.integrated_data[ii, :] = np.mean(self.raw_data[ii, 0:divisors * n_integration].reshape(-1, n_integration), axis=1)
 
-            self.integrated_data = self.integrated_data.reshape(-1)
+            # self.integrated_data = self.integrated_data.reshape(-1)
         else:
             self.integrated_data = self.raw_data
+
+        self.dt = float(dt * n_integration)
+        self.n_integration = n_integration
 
         # rotate the data for max variance in the real axis
         if theta is None:
@@ -67,8 +70,6 @@ class QntmJumpTrace:
         for i in range(self.dat_dims[0]):
             self.raw_data_rot[i] = dh.rotate_data(self.raw_data[i], self.theta)
             self.integrated_data_rot[i] = dh.rotate_data(self.integrated_data[i], self.theta)
-
-        self.dt = dt
 
         # attributes for latching filter pipeline
         self.raw_hist = []
@@ -88,50 +89,60 @@ class QntmJumpTrace:
         self.fs = None
         self.rate_lh_psd = None
         self.rate_hl_psd = None
+        self.fitresult_lorentzian = None
         
         # attributes for the hidden markov pipeline
-        self.model = hmm.GaussianHMM(n_components=2, n_iter=20)
-        if seq_lengths = 0:
-            self.seq_lengths = [len(raw_data)]
-        else:
-            self.seq_lengths = seq_lengths
-        self.hidden_states = []
+        self.hmm_model = hmm.GaussianHMM(n_components=2)
+        self.state_vec_hmm = []
         self.hmm_rates = []
+        self.rate_hl_hmm = None
+        self.rate_lh_hmm = None
 
-    def _hmm_fit(self)
-        """
-        Function that fits the Hidden Markov model of a two state telegram signal with Gaussian noise. Each state has its own noise distribution.
-        """
-        if len(self.raw_data_rot) == sum(self.seq_lengths):
-            self.model.fit(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
-        else:
-            raise ValueError("Data and seq_lengths do not match")
-            
-    def _hmm_predict(self):
-        """
-        Function that assigns the most likely states as predicted by the Hidden Markov model
-        """
-        self.hidden_states = self.model.predict(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
-        return self.hidden_states
-    
-    def _calc_rates(self):
-        """
-        Function that calculates the rates based on the decay rate and stationary distribution of the Hidden Markov model
-        """
-        a = np.linalg.eig(np.array(self.model.transmat_)) #calculate the eigenvalues 
-        tau = -self.timestep/np.log(np.min(a[0])) #calculate some characteristic 1/rate
-        stat = self.model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
+    def hmm_pipeline(self, n_iter=20):
 
-        #  (1/tau = 1/t_e +1/t_o)
-        self.hmm_times = [tau/(b[1]/(b[1]+b[0]), tau/(b[0]/(b[0]+b[1])]
-        return self.hmm_times
-      
-    def _create_hist(self, data, n_bins):
-        """Calculate the histogram and return an x-axis that is of same length as the numbers
-        the x-axis represents the middle of the bins"""
-        self.rate_lh = None
-        self.rate_hl = None
-                                                      
+        self.hmm_model.n_iter = n_iter
+
+        flattened_input = self.integrated_data_rot.real.reshape(-1, 1)
+        seq_len = (np.ones(self.dat_dims[0], dtype=int)*self.dat_dims[1]/self.n_integration).astype(int)
+
+        self.hmm_model.fit(flattened_input, lengths=seq_len)
+        self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len)
+
+        a = np.linalg.eig(np.array(self.hmm_model.transmat_)) #calculate the eigenvalues
+        tau = -self.dt/np.log(np.min(a[0])) #calculate some characteristic 1/rate
+        stat = self.hmm_model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
+
+        self.rate_hl_hmm = stat[1]/(stat[1]+stat[0]) / tau
+        self.rate_lh_hmm = stat[0]/(stat[0]+stat[1]) / tau
+
+    # def _hmm_fit(self, n_iter=20):
+    #     """
+    #     Function that fits the Hidden Markov model of a two state telegram signal with Gaussian noise. Each state has its own noise distribution.
+    #     """
+    #     if len(self.raw_data_rot) == sum(self.seq_lengths):
+    #         self.model.fit(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
+    #     else:
+    #         raise ValueError("Data and seq_lengths do not match")
+    #
+    # def _hmm_predict(self):
+    #     """
+    #     Function that assigns the most likely states as predicted by the Hidden Markov model
+    #     """
+    #     self.hidden_states = self.model.predict(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
+    #     return self.hidden_states
+    #
+    # def _calc_rates(self):
+    #     """
+    #     Function that calculates the rates based on the decay rate and stationary distribution of the Hidden Markov model
+    #     """
+    #     a = np.linalg.eig(np.array(self.model.transmat_)) #calculate the eigenvalues
+    #     tau = -self.timestep/np.log(np.min(a[0])) #calculate some characteristic 1/rate
+    #     stat = self.model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
+    #
+    #     #  (1/tau = 1/t_e +1/t_o)
+    #     self.hmm_times = [tau/([1]/(b[1]+b[0]), tau/(b[0]/(b[0]+b[1])]
+    #     return self.hmm_times
+
     @staticmethod
     def _create_hist(data, n_bins):
         """Calculate a histogram and return an x-axis that is of same length. The numbers of the x-axis represent
@@ -140,7 +151,7 @@ class QntmJumpTrace:
          @param n_bins: number of bins for the histogramming
          @return: tuple of: middle of bins, normalized occurrence"""
 
-        n, bins = np.histogram(data, bins=n_bins, density=True)
+        n, bins = np.histogram(data, bins=n_bins, density=False)
         x_axis = bins[:-1] + (bins[1] - bins[0]) / 2.
 
         return x_axis, n
@@ -158,7 +169,7 @@ class QntmJumpTrace:
 
         if start_param_guess is None:
             mu1, mu2 = fitf.dbl_gaussian_guess_means(xdata, ydata)
-            c, sig = fitf.gaussian_guess_sigma_A(xdata, ydata)
+            sig, c = fitf.gaussian_guess_sigma_A(xdata, ydata)
             start_param_guess = [c, mu1, sig, c, mu2, sig]
 
         fit, conv = curve_fit(fitf.dbl_gaussian, xdata, ydata, p0=start_param_guess, **kwargs)
@@ -227,12 +238,21 @@ class QntmJumpTrace:
 
         if dbl_gauss_p0 is not None:
             self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
-                                                                start_param_guess=dbl_gauss_p0)
+                                                                start_param_guess=dbl_gauss_p0,
+                                                                bounds=(
+                                                                    (0, -np.inf, 0, 0, -np.inf, 0),
+                                                                    (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)))
         else:
             try:
-                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
+                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
+                                                                    bounds=((0, -np.inf, 0, 0, -np.inf, 0),
+                                                                            (np.inf, np.inf, np.inf, np.inf,
+                                                                             np.inf, np.inf)))
             except RuntimeError:
-                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], maxfev=int(1e4))
+                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], maxfev=int(1e4),
+                                                                    bounds=((0, -np.inf, 0, 0, -np.inf, 0),
+                                                                            (np.inf, np.inf, np.inf, np.inf,
+                                                                             np.inf, np.inf)))
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
@@ -254,7 +274,8 @@ class QntmJumpTrace:
 
         self.n_sigma_filter = n_sigma_filter
 
-        self._double_gauss_routine(n_bins, dbl_gauss_p0)
+        if self.fitresult_gauss is None:
+            self._double_gauss_routine(n_bins, dbl_gauss_p0)
 
         for i in range(self.dat_dims[0]):
             if not override_gaussfit:
@@ -314,8 +335,8 @@ class QntmJumpTrace:
                 self.rate_hl[i] = np.array([np.nan, np.nan])
 
         # rescale the rates to units of Hz
-        self.rate_lh[:, 0] /= self.dt
-        self.rate_hl[:, 0] /= self.dt
+        self.rate_lh[:, 0] = np.abs(self.rate_lh[:, 0] / self.dt)
+        self.rate_hl[:, 0] = np.abs(self.rate_hl[:, 0] / self.dt)
 
         return self
 
@@ -437,7 +458,7 @@ class QntmJumpTrace:
 
         # Calculating and plotting PSD
         for i in range(self.dat_dims[0]):
-            fs, ys_fft_i  = self._calculate_PSD(self.integrated_data_rot[i])
+            fs, ys_fft_i  = self._calculate_PSD(self.raw_data_rot[i])
             self.ys_fft += ys_fft_i/self.dat_dims[0]
         self.fs = fs
 
@@ -453,18 +474,40 @@ class QntmJumpTrace:
         params.add('b', value=np.mean(ydat[-10:-1]))
 
         out = minimize(fitf.residual, params, args=(xdat, ydat, fitf.QPP_Lorentzian))
+        self.fitresult_lorentzian = out
+
         Gamma = out.params["Gamma"].value
 
         Gamma1 = 2 * Gamma / (1 + R)
         Gamma2 = 2 * R * Gamma / (1 + R)
 
+        # multiply the rates with the integration number, because the PSD and its rates is calculated from the raw,
+        # unintegrated data
         if self.fitresult_gauss[1] > self.fitresult_gauss[4]:
-            self.rate_lh_psd = Gamma2/self.dt
-            self.rate_hl_psd = Gamma1/self.dt
+            self.rate_lh_psd = Gamma2 / self.dt * self.n_integration
+            self.rate_hl_psd = Gamma1 / self.dt * self.n_integration
 
         else:
-            self.rate_lh_psd = Gamma1/self.dt
-            self.rate_hl_psd = Gamma2/self.dt
+            self.rate_lh_psd = Gamma1 / self.dt * self.n_integration
+            self.rate_hl_psd = Gamma2 / self.dt * self.n_integration
+
+    def plot_psd_analysis(self, figsize=(12, 4)):
+
+        fig, axes = plt.subplots(1, 2, figsize=figsize)
+        axes[0].plot(self.raw_hist[0], self.raw_hist[1], 'bo')
+        axes[0].plot(self.raw_hist[0], fitf.dbl_gaussian(self.raw_hist[0], *self.fitresult_gauss), 'r')
+        axes[0].axvline(self.fitresult_gauss[1], color='r')
+        axes[0].axvline(self.fitresult_gauss[4], color='r')
+        axes[0].set_xlabel('I (arb. un.)')
+        axes[0].set_ylabel('normalized counts')
+
+        inds = np.where(self.fs >= 0.)[0]
+        axes[1].plot(self.fs[inds], self.ys_fft[inds], 'b-', label='data')
+        axes[1].plot(self.fs[inds], fitf.QPP_Lorentzian(self.fs[inds], self.fitresult_lorentzian.params), 'r-', label='fit')
+        axes[1].set_yscale('log')
+        axes[1].set_xlabel('Frequency (Hz)')
+        axes[1].set_xscale('log')
+        axes[1].legend()
 
 
 def calculate_PSD(ys):
@@ -614,7 +657,7 @@ def residual(params, x, y, function):
     return y_model - y
 
 
-def qj_times_v1(data, n_integration=1, plot=True):
+def qj_times_v1(data, bins_n, n_integration=1, plot=True):
 
     if plot:
         plt.figure(figsize = (12, 4))
@@ -633,7 +676,7 @@ def qj_times_v1(data, n_integration=1, plot=True):
 
     # Plotting histogram
     n_points = rotated_integrated_data.shape[0]
-    bins_n = int(n_points/180.)
+    # bins_n = int(n_points/180.)
     min_data = np.min(np.real(rotated_integrated_data))
     max_data = np.max(np.real(rotated_integrated_data))
     range_data = max_data - min_data
