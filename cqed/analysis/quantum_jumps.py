@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+from hmmlearn import hmm
 import cqed.utils.datahandling as dh
 import cqed.utils.fit_functions as fitf
 import matplotlib.mlab as mlab
@@ -87,7 +88,50 @@ class QntmJumpTrace:
         self.fs = None
         self.rate_lh_psd = None
         self.rate_hl_psd = None
+        
+        # attributes for the hidden markov pipeline
+        self.model = hmm.GaussianHMM(n_components=2, n_iter=20)
+        if seq_lengths = 0:
+            self.seq_lengths = [len(raw_data)]
+        else:
+            self.seq_lengths = seq_lengths
+        self.hidden_states = []
+        self.hmm_rates = []
 
+    def _hmm_fit(self)
+        """
+        Function that fits the Hidden Markov model of a two state telegram signal with Gaussian noise. Each state has its own noise distribution.
+        """
+        if len(self.raw_data_rot) == sum(self.seq_lengths):
+            self.model.fit(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
+        else:
+            raise ValueError("Data and seq_lengths do not match")
+            
+    def _hmm_predict(self):
+        """
+        Function that assigns the most likely states as predicted by the Hidden Markov model
+        """
+        self.hidden_states = self.model.predict(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
+        return self.hidden_states
+    
+    def _calc_rates(self):
+        """
+        Function that calculates the rates based on the decay rate and stationary distribution of the Hidden Markov model
+        """
+        a = np.linalg.eig(np.array(self.model.transmat_)) #calculate the eigenvalues 
+        tau = -self.timestep/np.log(np.min(a[0])) #calculate some characteristic 1/rate
+        stat = self.model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
+
+        #  (1/tau = 1/t_e +1/t_o)
+        self.hmm_times = [tau/(b[1]/(b[1]+b[0]), tau/(b[0]/(b[0]+b[1])]
+        return self.hmm_times
+      
+    def _create_hist(self, data, n_bins):
+        """Calculate the histogram and return an x-axis that is of same length as the numbers
+        the x-axis represents the middle of the bins"""
+        self.rate_lh = None
+        self.rate_hl = None
+                                                      
     @staticmethod
     def _create_hist(data, n_bins):
         """Calculate a histogram and return an x-axis that is of same length. The numbers of the x-axis represent
