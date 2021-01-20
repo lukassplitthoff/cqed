@@ -84,6 +84,7 @@ def gaussian_guess_sigma_A(xdat, ydat, plot=False):
 
     return sigma_guess, A_guess
 
+
 def exp_func(x, gamma, a):
     """ Exponential function a * exp(gamma * x)
     @param x: array
@@ -101,3 +102,19 @@ def lin_func(x, m, c):
     @param c: offset"""
 
     return m * x + c
+
+
+def QPP_Lorentzian(f, params):
+    '''
+    Lorentzian function.
+    '''
+    Gamma = params["Gamma"]
+    a = params["a"]
+    b = params["b"]
+
+    return a * (4*Gamma / ((2*Gamma)**2+(2*np.pi*f)**2)) + b
+
+
+def residual(params, x, y, function):
+    y_model = function(x, params)
+    return y_model - y
