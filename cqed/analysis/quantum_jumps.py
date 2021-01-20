@@ -48,7 +48,6 @@ class QntmJumpTrace:
             for ii in range(self.dat_dims[0]):
                 self.integrated_data[ii, :] = np.mean(self.raw_data[ii, 0:divisors * n_integration].reshape(-1, n_integration), axis=1)
 
-            # self.integrated_data = self.integrated_data.reshape(-1)
         else:
             self.integrated_data = self.raw_data
 
@@ -106,42 +105,14 @@ class QntmJumpTrace:
         seq_len = (np.ones(self.dat_dims[0], dtype=int)*self.dat_dims[1]/self.n_integration).astype(int)
 
         self.hmm_model.fit(flattened_input, lengths=seq_len)
-        self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len)
+        self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape(self.dat_dims)
 
         a = np.linalg.eig(np.array(self.hmm_model.transmat_)) #calculate the eigenvalues
-        tau = -self.dt/np.log(np.min(a[0])) #calculate some characteristic 1/rate
+        tau = -self.dt/np.log(np.abs(np.min(a[0]))) #calculate some characteristic 1/rate TODO: check if this is correct!
         stat = self.hmm_model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
 
         self.rate_hl_hmm = stat[1]/(stat[1]+stat[0]) / tau
         self.rate_lh_hmm = stat[0]/(stat[0]+stat[1]) / tau
-
-    # def _hmm_fit(self, n_iter=20):
-    #     """
-    #     Function that fits the Hidden Markov model of a two state telegram signal with Gaussian noise. Each state has its own noise distribution.
-    #     """
-    #     if len(self.raw_data_rot) == sum(self.seq_lengths):
-    #         self.model.fit(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
-    #     else:
-    #         raise ValueError("Data and seq_lengths do not match")
-    #
-    # def _hmm_predict(self):
-    #     """
-    #     Function that assigns the most likely states as predicted by the Hidden Markov model
-    #     """
-    #     self.hidden_states = self.model.predict(np.reshape(self.raw_data_rot,[len(self.raw_data_rot),1]),self.seq_lengths)
-    #     return self.hidden_states
-    #
-    # def _calc_rates(self):
-    #     """
-    #     Function that calculates the rates based on the decay rate and stationary distribution of the Hidden Markov model
-    #     """
-    #     a = np.linalg.eig(np.array(self.model.transmat_)) #calculate the eigenvalues
-    #     tau = -self.timestep/np.log(np.min(a[0])) #calculate some characteristic 1/rate
-    #     stat = self.model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
-    #
-    #     #  (1/tau = 1/t_e +1/t_o)
-    #     self.hmm_times = [tau/([1]/(b[1]+b[0]), tau/(b[0]/(b[0]+b[1])]
-    #     return self.hmm_times
 
     @staticmethod
     def _create_hist(data, n_bins):
@@ -458,7 +429,7 @@ class QntmJumpTrace:
 
         # Calculating and plotting PSD
         for i in range(self.dat_dims[0]):
-            fs, ys_fft_i  = self._calculate_PSD(self.raw_data_rot[i])
+            fs, ys_fft_i = self._calculate_PSD(self.raw_data_rot[i])
             self.ys_fft += ys_fft_i/self.dat_dims[0]
         self.fs = fs
 
@@ -478,8 +449,8 @@ class QntmJumpTrace:
 
         Gamma = out.params["Gamma"].value
 
-        Gamma1 = 2 * Gamma / (1 + R)
-        Gamma2 = 2 * R * Gamma / (1 + R)
+        Gamma1 = 2. * Gamma / (1. + R)
+        Gamma2 = 2. * R * Gamma / (1. + R)
 
         # multiply the rates with the integration number, because the PSD and its rates is calculated from the raw,
         # unintegrated data
