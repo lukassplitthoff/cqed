@@ -41,15 +41,16 @@ class QntmJumpTrace:
                 self.dat_dims = (self.dat_dims[1], self.dat_dims[0])
 
         if theta is None:
-            self.theta = np.zeros(self.dat_dims[0])
+            thetas = np.zeros(self.dat_dims[0])
             for i in range(self.dat_dims[0]):
-                self.theta[i] = dh.max_variance_angle(self.raw_data[i])
+                thetas[i] = dh.max_variance_angle(self.raw_data[i])
+            self.theta = np.mean(thetas)
         else:
-            self.theta = np.ones(self.dat_dims[0]) * theta
+            self.theta = theta
 
         self.raw_data_rot = np.zeros_like(self.raw_data, dtype=complex)
         for i in range(self.dat_dims[0]):
-            self.raw_data_rot[i] = dh.rotate_data(self.raw_data[i], self.theta[i])
+            self.raw_data_rot[i] = dh.rotate_data(self.raw_data[i], self.theta)
 
         self.dt = dt
 
@@ -150,6 +151,16 @@ class QntmJumpTrace:
                     count_e += 1
 
         return state, np.array(dwell_g), np.array(dwell_e)
+
+    def _double_gauss_routine(self, n_bins=100):
+        """
+        Histogram the real part of the rotated data all at once, i.e. flatten the input array in case it's 2d
+        then fit a double gaussian distribution
+        """
+
+        self.raw_hist = self._create_hist(self.raw_data_rot.real.flatten, n_bins)
+
+
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
