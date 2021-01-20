@@ -59,10 +59,10 @@ class QntmJumpTrace:
         self.state_vec = np.empty_like(self.raw_data)
         self.dwell_l = []
         self.dwell_h = []
-        self.hist_dwell_l = []
-        self.hist_dwell_h = []
-        self.rate_lh = None
-        self.rate_hl = None
+        self.hist_dwell_l = np.empty((self.dat_dims[0], 2), dtype=object)
+        self.hist_dwell_h = np.empty((self.dat_dims[0], 2), dtype=object)
+        self.rate_lh = np.empty((self.dat_dims[0], 2))
+        self.rate_hl = np.empty((self.dat_dims[0], 2))
         self.n_sigma_filter = 1.
         self.fitresult_gauss = None
         self._dwellhist_guess = [-0.01, 1.] # some hardcoded guesses for the linear fit of dwell time histogram
@@ -152,13 +152,22 @@ class QntmJumpTrace:
 
         return state, np.array(dwell_g), np.array(dwell_e)
 
-    def _double_gauss_routine(self, n_bins=100):
+    def _double_gauss_routine(self, n_bins, dbl_gauss_p0):
         """
         Histogram the real part of the rotated data all at once, i.e. flatten the input array in case it's 2d
         then fit a double gaussian distribution
         """
 
-        self.raw_hist = self._create_hist(self.raw_data_rot.real.flatten, n_bins)
+        self.raw_hist = self._create_hist(self.raw_data_rot.real.flatten(), n_bins)
+
+        if dbl_gauss_p0 is not None:
+            self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
+                                                                start_param_guess=dbl_gauss_p0)
+        else:
+            try:
+                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
+            except RuntimeError:
+                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], maxfev=int(1e4))
 
 
 
@@ -181,63 +190,68 @@ class QntmJumpTrace:
         """
 
         self.n_sigma_filter = n_sigma_filter
-        self.raw_hist = self._create_hist(self.raw_data_rot.real, n_bins)
 
-        if dbl_gauss_p0 is not None:
-            self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], start_param_guess=dbl_gauss_p0)
-        else:
+        self._double_gauss_routine(n_bins, dbl_gauss_p0)
+
+        for i in range(self.dat_dims[0]):
+            if not override_gaussfit:
+                self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
+                                                                              self.fitresult_gauss[[1, 4]],
+                                                                              n_sigma_filter
+                                                                              * self.fitresult_gauss[[2, 5]])
+                self.dwell_l.append(_dwell_l)
+                self.dwell_h.append(_dwell_h)
+
+            else:
+                self.fitresult_gauss = np.array([1., state_filter_prms[0][0], state_filter_prms[1][0],
+                                                 1., state_filter_prms[0][1], state_filter_prms[1][1]])
+
+                self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
+                                                                              self.fitresult_gauss[[1, 4]],
+                                                                              n_sigma_filter
+                                                                              * self.fitresult_gauss[[2, 5]])
+                self.dwell_l.append(_dwell_l)
+                self.dwell_h.append(_dwell_h)
+
             try:
-                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
-            except RuntimeError:
-                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], maxfev=int(1e4))
-
-        if not override_gaussfit:
-            self.state_vec, self.dwell_l, self.dwell_h = self._latching_filter(self.raw_data_rot.real,
-                                                                               self.fitresult_gauss[[1, 4]],
-                                                                               n_sigma_filter *
-                                                                               self.fitresult_gauss[[2, 5]])
-        else:
-            self.fitresult_gauss = np.array([1., state_filter_prms[0][0], state_filter_prms[1][0],
-                                             1., state_filter_prms[0][1], state_filter_prms[1][1]])
-
-            self.state_vec, self.dwell_l, self.dwell_h = self._latching_filter(self.raw_data_rot.real,
-                                                                               self.fitresult_gauss[[1, 4]],
-                                                                               n_sigma_filter *
-                                                                               self.fitresult_gauss[[2, 5]])
-
-        try:
-            self.hist_dwell_l = self._create_hist(self.dwell_l, np.max(self.dwell_l))
-            self.hist_dwell_h = self._create_hist(self.dwell_h, np.max(self.dwell_h))
-        except ValueError:
-            self.hist_dwell_l = None
-            self.hist_dwell_h = None
-
-        if self.hist_dwell_h is not None:
-            try:
-                # since the histogram has zeros as entries, filter those before passing to curve_fit
-                log_yl = np.log(self.hist_dwell_l[1])
-                inds = np.where(np.isfinite(log_yl))[0]
-                x_l = self.hist_dwell_l[0][inds]
-                y_l = log_yl[inds]
-
-                self.rate_lh = curve_fit(fitf.lin_func, x_l, y_l, p0=[self._dwellhist_guess[0],
-                                                                      self._dwellhist_guess[1]])
-
-                # since the histogram has zeros as entries, filter those before passing to curve_fit
-                log_yh = np.log(self.hist_dwell_h[1])
-                inds = np.where(np.isfinite(log_yh))[0]
-                x_h = self.hist_dwell_h[0][inds]
-                y_h = log_yh[inds]
-
-                self.rate_hl = curve_fit(fitf.lin_func, x_h, y_h, p0=[self._dwellhist_guess[0],
-                                                                      self._dwellhist_guess[1]])
+                n_l, nums_l = self._create_hist(self.dwell_l, np.max(self.dwell_l))
+                n_h, nums_h = self._create_hist(self.dwell_h, np.max(self.dwell_h))
+                self.hist_dwell_l[i] = n_l, nums_l
+                self.hist_dwell_h[i] = n_h, nums_h
 
             except ValueError:
-                self.rate_lh = None
-                self.rate_hl = None
-        else:
-            self.rate_lh = None
-            self.rate_hl = None
+                self.hist_dwell_l[i] = None, None
+                self.hist_dwell_h[i] = None, None
+
+            if self.hist_dwell_h[i] is not None:
+                try:
+                    # since the histogram has zeros as entries, filter those before passing to curve_fit
+                    log_yl = np.log(self.hist_dwell_l[i][1])
+                    inds = np.where(np.isfinite(log_yl))[0]
+                    x_l = self.hist_dwell_l[i][0][inds]
+                    y_l = log_yl[inds]
+
+                    self.rate_lh[i], conv = curve_fit(fitf.lin_func, x_l, y_l, p0=[self._dwellhist_guess[0],
+                                                                          self._dwellhist_guess[1]])
+
+                    # since the histogram has zeros as entries, filter those before passing to curve_fit
+                    log_yh = np.log(self.hist_dwell_h[i][1])
+                    inds = np.where(np.isfinite(log_yh))[0]
+                    x_h = self.hist_dwell_h[i][0][inds]
+                    y_h = log_yh[inds]
+
+                    self.rate_hl[i], conv = curve_fit(fitf.lin_func, x_h, y_h, p0=[self._dwellhist_guess[0],
+                                                                          self._dwellhist_guess[1]])
+
+                except ValueError:
+                    self.rate_lh[i] = np.array([np.nan, np.nan])
+                    self.rate_hl[i] = np.array([np.nan, np.nan])
+            else:
+                self.rate_lh[i] = np.array([np.nan, np.nan])
+                self.rate_hl[i] = np.array([np.nan, np.nan])
+
+        self.rate_lh[:, 0] /= self.dt
+        self.rate_hl[:, 0] /= self.dt
 
         return self
 
