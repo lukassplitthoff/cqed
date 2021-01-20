@@ -81,7 +81,7 @@ class QntmJumpTrace:
         self.rate_hl = np.zeros((self.dat_dims[0], 2), dtype=float)
         self.n_sigma_filter = 1.
         self.fitresult_gauss = None
-        self._dwellhist_guess = [-0.01, 1.] # some hardcoded guesses for the linear fit of dwell time histogram
+        self._dwellhist_guess = [-0.01, 1000.] # some hardcoded guesses for the linear fit of dwell time histogram
 
         # attributes for PSD pipeline
         self.ys_fft = np.zeros(self.dat_dims[1])
@@ -311,7 +311,7 @@ class QntmJumpTrace:
 
         return self
 
-    def plot_analysis(self, figsize=(16, 9)):
+    def plot_latching_analysis(self, figsize=(16, 9)):
         """
         Function to plot an overview of the latching_pipeline fit results.
         @param figsize: passed to matplotlib.pyplot.figure to adjust the figure size
@@ -334,37 +334,37 @@ class QntmJumpTrace:
         ax_histy = plt.axes(dim_ax_histy)
         ax_state_assign = plt.axes(dim_ax_state_assign)
 
-        # ax_raw.hist2d(self.raw_data.real, self.raw_data.imag, bins=50)
-        # ax_raw.axis('equal')
-        # ax_raw.set_title('raw data')
-        # ax_raw.set_xlabel('I (arb. un.)')
-        # ax_raw.set_ylabel('Q (arb. un.)')
-        #
-        # ax_rot.hist2d(self.raw_data_rot.real, self.raw_data_rot.imag, bins=50)
-        # ax_rot.axis('equal')
-        # ax_rot.set_title('rotated data')
-        # ax_rot.set_xlabel('I (arb. un.)')
-        # ax_rot.set_ylabel('Q (arb. un.)')
+        ax_raw.hist2d(self.raw_data[0].real, self.raw_data[0].imag, bins=50)
+        ax_raw.axis('equal')
+        ax_raw.set_title('raw data')
+        ax_raw.set_xlabel('I (arb. un.)')
+        ax_raw.set_ylabel('Q (arb. un.)')
 
-        # if self.hist_dwell_h is None:
-        #     pass
-        # else:
-        #     ax_dwell_hist.plot(self.hist_dwell_l[0], self.hist_dwell_l[1], 'o', mfc='none', label='low state')
-        #     ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], 'o', mfc='none', label='higher state')
-        #
-        #     if self.rate_lh is not None:
-        #         ax_dwell_hist.plot(self.hist_dwell_l[0], fitf.exp_func(self.hist_dwell_l[0], self.rate_lh[0][0],
-        #                                                                 np.exp(self.rate_lh[0][1])), 'k')
-        #         ax_dwell_hist.plot(self.hist_dwell_h[0], fitf.exp_func(self.hist_dwell_h[0], self.rate_hl[0][0],
-        #                                                                 np.exp(self.rate_hl[0][1])), 'k')
-        #
-        #     ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0]), np.max(self.hist_dwell_h[0])]))
-        #
-        # ax_dwell_hist.set_yscale('log')
-        # ax_dwell_hist.set_title('histogram of dwell times')
-        # ax_dwell_hist.set_ylabel('norm. occurence')
-        # ax_dwell_hist.set_xlabel('dwell time')
-        # ax_dwell_hist.legend()
+        ax_rot.hist2d(self.raw_data_rot[0].real, self.raw_data_rot[0].imag, bins=50)
+        ax_rot.axis('equal')
+        ax_rot.set_title('rotated data')
+        ax_rot.set_xlabel('I (arb. un.)')
+        ax_rot.set_ylabel('Q (arb. un.)')
+
+        if self.hist_dwell_h is None:
+            pass
+        else:
+            ax_dwell_hist.plot(self.hist_dwell_l[0][0], self.hist_dwell_l[0][1], 'o', mfc='none', label='low state')
+            ax_dwell_hist.plot(self.hist_dwell_h[0][0], self.hist_dwell_h[0][1], 'o', mfc='none', label='higher state')
+
+            # if self.rate_lh is not None:
+            #     ax_dwell_hist.plot(self.hist_dwell_l[0][0], fitf.exp_func(self.hist_dwell_l[0][0], self.rate_lh[0][0],
+            #                                                             np.exp(self.rate_lh[0][1])), 'k')
+            #     ax_dwell_hist.plot(self.hist_dwell_h[0][0], fitf.exp_func(self.hist_dwell_h[0][0], self.rate_hl[0][0],
+            #                                                             np.exp(self.rate_hl[0][1])), 'k')
+
+            ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0][0]), np.max(self.hist_dwell_h[0][0])]))
+
+        ax_dwell_hist.set_yscale('log')
+        ax_dwell_hist.set_title('histogram of dwell times')
+        ax_dwell_hist.set_ylabel('norm. occurence')
+        ax_dwell_hist.set_xlabel('dwell time')
+        ax_dwell_hist.legend()
 
         ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss[1] - self.n_sigma_filter * self.fitresult_gauss[2],
                               self.fitresult_gauss[1] + self.n_sigma_filter * self.fitresult_gauss[2], alpha=0.4, color='tab:orange')
@@ -387,14 +387,14 @@ class QntmJumpTrace:
         ax_histy.set_xlabel('norm. occurence')
         ax_histy.set_title('histogram rot. data')
         ax_histy.legend()
-        #
-        # ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[:500], 'k.-', label='real rotated data')
-        # ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[:500] * (np.abs(self.fitresult_gauss[1])
-        #                                                                     + self.fitresult_gauss[4])
-        #                                             + self.fitresult_gauss[1]), color='red', label='state assignment')
-        # ax_state_assign.set_xlabel('timestep')
-        # ax_state_assign.set_ylabel('I (arb. un.)')
-        # ax_state_assign.legend()
+
+        ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[0][:500], 'k.-', label='real rotated data')
+        ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[0][:500] * (np.abs(self.fitresult_gauss[1])
+                                                                            + self.fitresult_gauss[4])
+                                                    + self.fitresult_gauss[1]), color='red', label='state assignment')
+        ax_state_assign.set_xlabel('timestep')
+        ax_state_assign.set_ylabel('I (arb. un.)')
+        ax_state_assign.legend()
 
     @staticmethod
     def _calculate_PSD(ys):
