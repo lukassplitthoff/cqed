@@ -61,7 +61,7 @@ class QntmJumpTrace:
         """
         Function that calculates the rates based on the decay rate and stationary distribution of the Hidden Markov model
         """
-        a = np.linalg.eig(T) #calculate the eigenvalues 
+        a = np.linalg.eig(np.array(self.model.transmat_)) #calculate the eigenvalues 
         tau = -self.timestep/np.log(np.min(a[0])) #calculate some characteristic 1/rate
         stat = self.model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
 
