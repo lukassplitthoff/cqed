@@ -17,7 +17,8 @@ class QntmJumpTrace:
         Class to analyse quantum jumps traces and extract transition
         rates between the identified states
 
-        @param data: either a complex 2d-array, or a tuple of 2d arrays (real, imag)
+        @param data: either a complex 2d-array, or a tuple of 2d arrays (real, imag). If 2d array it is assumed that it
+        is less time traces than data points per trace.
         @param dt: time between two data points in seconds
         @param data_complex: bool, default=True
         @param theta: angle to rotate the raw input data. If not specified the data is rotated for max variance
@@ -25,16 +26,31 @@ class QntmJumpTrace:
         """
 
         if data_complex:
-            self.raw_data = data
+            self.raw_data = np.array(data)
         else:
-            self.raw_data = data[0] + 1.j * data[1]
+            self.raw_data = np.array(data[0]) + 1.j * np.array(data[1])
+
+        # take care of 1d and 2d arrays as input and handle them on equal footing
+        self.dat_dims = self.raw_data.shape
+        if len(self.dat_dims) < 2:
+            self.raw_data = np.expand_dims(self.raw_data, axis=0)
+            self.dat_dims = (1, self.dat_dims)
+        else:
+            if self.dat_dims[0] > self.dat_dims[1]:
+                self.raw_data = self.raw_data.T
+                self.dat_dims = (self.dat_dims[1], self.dat_dims[0])
 
         if theta is None:
-            self.theta = dh.max_variance_angle(self.raw_data)
+            self.theta = np.zeros(self.dat_dims[0])
+            for i in range(self.dat_dims[0]):
+                self.theta[i] = dh.max_variance_angle(self.raw_data[i])
         else:
-            self.theta = theta
+            self.theta = np.ones(self.dat_dims[0]) * theta
 
-        self.raw_data_rot = dh.rotate_data(self.raw_data, self.theta)
+        self.raw_data_rot = np.zeros_like(self.raw_data, dtype=complex)
+        for i in range(self.dat_dims[0]):
+            self.raw_data_rot[i] = dh.rotate_data(self.raw_data[i], self.theta[i])
+
         self.dt = dt
 
         # Attributes for latching filter pipeline
