@@ -107,7 +107,7 @@ class QntmJumpTrace:
         seq_len = (np.ones(self.dat_dims[0], dtype=int)*self.dat_dims[1]/self.n_integration).astype(int)
 
         self.hmm_model.fit(flattened_input, lengths=seq_len)
-        self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape(self.dat_dims)
+        # self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape(self.dat_dims)
 
         a = np.linalg.eig(np.array(self.hmm_model.transmat_)) #calculate the eigenvalues
         tau = -self.dt/np.log(np.abs(np.min(a[0]))) #calculate some characteristic 1/rate TODO: check if this is correct!
@@ -504,7 +504,7 @@ def calculate_PSD(ys):
 
     fmax = 1.
     df = 1. / len(ys)
-    pts_fft = len(ys) / 2
+    pts_fft = int(len(ys) / 2)
     fs1 = np.linspace(0, fmax / 2.-df, pts_fft)
     fs2 = np.linspace(fmax / 2., df, pts_fft)
     fs = np.append(fs1, -fs2)

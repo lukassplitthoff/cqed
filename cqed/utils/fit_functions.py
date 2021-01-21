@@ -47,10 +47,16 @@ def dbl_gaussian_guess_means(xdat, ydat, threshold=0.1):
     while ydat[m2] < threshold * M:
         m2 -= 1
 
-    n = 2 * int(0.1 * (m2 - m1)) + 1
-    y_smoothed = savgol_filter(ydat[m1:m2], n, 3)
-    y_smoothed = savgol_filter(y_smoothed, n, 3)
-    y_smoothed = savgol_filter(y_smoothed, n, 3)
+    n = 2*int(0.1*(m2-m1))+1
+    if n>3:
+        y_smoothed = savgol_filter(ydat, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+    else:
+        y_smoothed = ydat
+
     ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
     ii = ii[0]
     if len(ii) == 0:
@@ -87,7 +93,17 @@ def gaussian_guess_sigma_A(xdat, ydat, threshold=0.2):
         m2-=1
 
     sigma_guess = 0.15*(xdat[m2]-xdat[m1])
-    y_max = ydat[np.argmax(ydat)]
+
+    n = 2*int(0.1*(m2-m1))+1
+    if n>3:
+        y_smoothed = savgol_filter(ydat, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+    else:
+        y_smoothed = ydat
+    y_max = ydat[np.argmax(y_smoothed)]
     A_guess = 0.5 * y_max * np.sqrt(2*np.pi*sigma_guess**2)
 
     return sigma_guess, A_guess
