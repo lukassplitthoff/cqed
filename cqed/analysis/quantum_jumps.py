@@ -434,7 +434,7 @@ class QntmJumpTrace:
         if self.fitresult_gauss is None:
             self._double_gauss_routine(n_bins, dbl_gauss_p0)
 
-        R = self.fitresult_gauss.params["mu2"].value / self.fitresult_gauss.params["mu1"].value
+        R = self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value
 
         # Calculating and plotting PSD
         for i in range(self.dat_dims[0]):
