@@ -437,7 +437,7 @@ class QntmJumpTrace:
 
         # R = out.params["A2"].value / out.params["A1"].value
         #TODO: does it have to be this way or could it also be the inverse?
-        R = self.fitresult_gauss[3] / self.fitresult_gauss[0]
+        R = self.fitresult_gauss.params["mu2"].value / self.fitresult_gauss.params["mu1"].value
 
         # Calculating and plotting PSD
         for i in range(self.dat_dims[0]):
@@ -467,7 +467,7 @@ class QntmJumpTrace:
 
         # multiply the rates with the integration number, because the PSD and its rates is calculated from the raw,
         # unintegrated data
-        if self.fitresult_gauss[1] > self.fitresult_gauss[4]:
+        if self.fitresult_gauss.params["mu1"].value > self.fitresult_gauss.params["mu2"].value:
             self.rate_lh_psd = Gamma2 / self.dt * self.n_integration
             self.rate_hl_psd = Gamma1 / self.dt * self.n_integration
 
