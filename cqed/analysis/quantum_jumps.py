@@ -70,6 +70,8 @@ class QntmJumpTrace:
             self.raw_data_rot[i] = dh.rotate_data(self.raw_data[i], self.theta)
             self.integrated_data_rot[i] = dh.rotate_data(self.integrated_data[i], self.theta)
 
+        self.SNR = None
+
         # attributes for latching filter pipeline
         self.raw_hist = []
         self.state_vec = np.empty_like(self.raw_data)
@@ -236,6 +238,8 @@ class QntmJumpTrace:
                                                                     (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)))
         else:
             self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], min_data=self.min_data, max_data=self.max_data)
+            average_sigma = 0.5 * (self.fitresult_gauss.params["sig1"] + self.fitresult_gauss.params["sig2"])
+            self.SNR = np.abs((self.fitresult_gauss.params["mu2"] - self.fitresult_gauss.params["mu1"]) / average_sigma)
         
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
@@ -474,7 +478,7 @@ class QntmJumpTrace:
             self.rate_hl_psd = Gamma2 / self.dt * self.n_integration
 
         # Calculate measure of fit accurazy
-        self.fit_accuracy_psd = self.fitresult_gauss.redchi * self.fitresult_lorentzian.redchi
+        self.fit_accuracy_psd = 1. / (self.fitresult_gauss.redchi * self.fitresult_lorentzian.redchi)
 
     def plot_psd_analysis(self, figsize=(12, 4)):
 
