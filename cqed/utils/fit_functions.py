@@ -20,7 +20,7 @@ def dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
     return res
 
 
-def dbl_gaussian_guess_means(xdat, ydat):
+def dbl_gaussian_guess_means(xdat, ydat, threshold=0.1):
     '''
     Calculates initial guesses for the two means for a double Gaussian fit.
     After smoothing the data, it first finds a local minimum to split the data
@@ -33,10 +33,10 @@ def dbl_gaussian_guess_means(xdat, ydat):
     M = np.max(ydat)
     m = len(ydat)
     m1 = 0
-    while ydat[m1] < 0.2 * M:
+    while ydat[m1] < threshold * M:
         m1 += 1
     m2 = m - 1
-    while ydat[m2] < 0.2 * M:
+    while ydat[m2] < threshold * M:
         m2 -= 1
 
     n = 2 * int(0.1 * (m2 - m1)) + 1
@@ -63,7 +63,7 @@ def dbl_gaussian_guess_means(xdat, ydat):
     return xdat[ix1], xdat[ix2]
 
 
-def gaussian_guess_sigma_A(xdat, ydat, plot=False):
+def gaussian_guess_sigma_A(xdat, ydat, threshold=0.2):
     '''
     Calculates some initial guess for
     sigma and A for a double Gaussian fit.
@@ -72,10 +72,10 @@ def gaussian_guess_sigma_A(xdat, ydat, plot=False):
     M = np.max(ydat)
     m = len(ydat)
     m1 = 0
-    while ydat[m1]<0.2*M:
+    while ydat[m1]<threshold*M:
         m1+=1
     m2 = m-1
-    while ydat[m2]<0.2*M:
+    while ydat[m2]<threshold*M:
         m2-=1
 
     sigma_guess = 0.15*(xdat[m2]-xdat[m1])
