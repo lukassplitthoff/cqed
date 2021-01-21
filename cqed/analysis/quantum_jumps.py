@@ -89,6 +89,8 @@ class QntmJumpTrace:
         self.rate_lh_psd = None
         self.rate_hl_psd = None
         self.fitresult_lorentzian = None
+        self.min_data = None
+        self.max_data = None
         
         # attributes for the hidden markov pipeline
         self.hmm_model = hmm.GaussianHMM(n_components=2)
@@ -140,14 +142,14 @@ class QntmJumpTrace:
 
         if start_param_guess is None:
             mu1, mu2 = fitf.dbl_gaussian_guess_means(xdata, ydata, threshold=0.1) 
-            sig, c = fitf.gaussian_guess_sigma_A(xdata, ydata, threshold=0.2)    
+            sig, c = fitf.gaussian_guess_sigma_A(xdata, ydata, threshold=0.2)           
             min_data = np.min(xdata)
-            max_data = np.max(xdata)      
+            max_data = np.max(xdata)       
             params = Parameters()
             params.add('c1', value=c, min=0.0, max=5*c)
             params.add('c2', value=c, min=0.0, max=5*c)
             params.add('mu1', value=mu1, min=min_data, max=max_data)
-            params.add('delta', value=0, min=0., max=max_data-min_data)
+            params.add('delta', value=mu2, min=0.0, max=max_data-min_data)
             params.add('mu2', expr='mu1+delta')
             params.add('sig1', value=sig, min=0.05*sig, max=20*sig)
             params.add('sig2', value=sig, min=0.05*sig, max=20*sig)
@@ -221,6 +223,8 @@ class QntmJumpTrace:
         x_min = min_data - 10*range_data
         n_bins = int(n_bins * (x_max-x_min)/(max_data-min_data))
         self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins=n_bins, range=(x_min, x_max))
+        self.min_data = np.min(self.raw_hist[0])
+        self.max_data = np.max(self.raw_hist[0]) 
 
         # TODO: do we want these bounds? I encountered that diong this it sometimes gives errors when 
         # trying to fit two Gaussians to data that is only one Gaussian, because it just finds mu2 very
@@ -479,6 +483,8 @@ class QntmJumpTrace:
         axes[0].plot(self.raw_hist[0], fitf.dbl_gaussian(self.raw_hist[0], self.fitresult_gauss.params), 'r')
         axes[0].axvline(self.fitresult_gauss.params["mu1"].value, color='r')
         axes[0].axvline(self.fitresult_gauss.params["mu2"].value, color='r')
+        if self.min_data!=None and self.max_data!=None:
+            axes[0].set_xlim([self.min_data, self.max_data])
         axes[0].set_xlabel('I (arb. un.)')
         axes[0].set_ylabel('Counts')
 
