@@ -130,7 +130,7 @@ class QntmJumpTrace:
         return x_axis, n
 
     @staticmethod
-    def _fit_dbl_gaussian(xdata, ydata, start_param_guess=None, **kwargs):
+    def _fit_dbl_gaussian(xdata, ydata, min_data=-np.inf, max_data=np.inf, start_param_guess=None, **kwargs):
         """ Fit a double gaussian distribution using scipy.curve_fit.
         @param xdata: (array)
         @param ydata: (array)
@@ -142,15 +142,13 @@ class QntmJumpTrace:
 
         if start_param_guess is None:
             mu1, mu2 = fitf.dbl_gaussian_guess_means(xdata, ydata, threshold=0.1) 
-            sig, c = fitf.gaussian_guess_sigma_A(xdata, ydata, threshold=0.2)           
-            min_data = np.min(xdata)
-            max_data = np.max(xdata)       
+            sig, c = fitf.gaussian_guess_sigma_A(xdata, ydata, threshold=0.2)             
             params = Parameters()
             params.add('c1', value=c, min=0.0, max=5*c)
             params.add('c2', value=c, min=0.0, max=5*c)
             params.add('mu1', value=mu1, min=min_data, max=max_data)
-            params.add('delta', value=mu2-mu1, min=0.0, max=max_data-min_data)
-            params.add('mu2', expr='mu1+delta')
+            # params.add('delta', value=mu2-mu1, min=0.0)
+            params.add('mu2', value=mu2, min=min_data, max=max_data) #expr='mu1+delta'
             params.add('sig1', value=sig, min=0.05*sig, max=20*sig)
             params.add('sig2', value=sig, min=0.05*sig, max=20*sig)
         
@@ -236,7 +234,7 @@ class QntmJumpTrace:
                                                                     (0, -np.inf, 0, 0, -np.inf, 0),
                                                                     (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)))
         else:
-            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
+            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], min_data=self.min_data, max_data=self.max_data)
         
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
@@ -698,7 +696,6 @@ def qj_times_v1(data, bins_n, n_integration=1, plot=True):
     R = out.params["A2"].value / out.params["A1"].value
     fit_x1 = out.params["x1"].value
     fit_x2 = out.params["x2"].value
-    print(fit_x1, fit_x2, R)
     if plot:
         plt.plot(xdat, double_Gaussian(xdat, out.params), 'r-', lw=2, label='fit')
         plt.vlines([fit_x1, fit_x2], ymin=0, ymax=np.max(ydat), colors='r')

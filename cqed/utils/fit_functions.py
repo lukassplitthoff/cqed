@@ -22,8 +22,9 @@ def dbl_gaussian(x, params):
     mu2 = params["mu2"]
     sg1 = params["sig1"]
     sg2 = params["sig2"]
-    res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) \
-        + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.))
+    # @Lukas G. I added normalization here, is this a problem?
+    res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) / np.sqrt(2*np.pi*sg1**2) \
+        + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.)) / np.sqrt(2*np.pi*sg2**2)
     return res
 
 
