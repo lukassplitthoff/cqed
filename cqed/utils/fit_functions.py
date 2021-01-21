@@ -3,18 +3,25 @@ import numpy as np
 from scipy.signal import argrelextrema, savgol_filter
 
 
-def dbl_gaussian(x, c1, mu1, sg1, c2, mu2, sg2):
+def dbl_gaussian(x, params):
     """
     A double gaussian distribution
     @param x: x-axis
-    @param c1: scaling parameter for distribution 1
-    @param mu1: mean of first gaussian
-    @param sg1: variance of first gaussian
-    @param c2: scaling parameter for distribution 2
-    @param mu2: mean of second gaussian
-    @param sg2: variance of second gaussian
+    @param params: dictionary containing
+        "c1": scaling parameter for distribution 1
+        "mu1": mean of first gaussian
+        "sig1": variance of first gaussian
+        "c2": scaling parameter for distribution 2
+        "mu2: mean of second gaussian
+        "sig2": variance of second gaussian
     @return: array of double gaussian distribution
     """
+    c1 = params["c1"]
+    c2 = params["c2"]
+    mu1 = params["mu1"]
+    mu2 = params["mu2"]
+    sg1 = params["sig1"]
+    sg2 = params["sig2"]
     res = c1 * np.exp(-(x - mu1) ** 2. / (2. * sg1 ** 2.)) \
         + c2 * np.exp(-(x - mu2) ** 2. / (2. * sg2 ** 2.))
     return res

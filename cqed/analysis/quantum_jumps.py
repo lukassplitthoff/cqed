@@ -115,14 +115,14 @@ class QntmJumpTrace:
         self.rate_lh_hmm = stat[0]/(stat[0]+stat[1]) / tau
 
     @staticmethod
-    def _create_hist(data, n_bins):
+    def _create_hist(data, n_bins, range):
         """Calculate a histogram and return an x-axis that is of same length. The numbers of the x-axis represent
          the middle of the corresponding bins
          @param data: array to histogram
          @param n_bins: number of bins for the histogramming
          @return: tuple of: middle of bins, normalized occurrence"""
 
-        n, bins = np.histogram(data, bins=n_bins, density=False)
+        n, bins = np.histogram(data, bins=n_bins, density=False, range=range)
         x_axis = bins[:-1] + (bins[1] - bins[0]) / 2.
 
         return x_axis, n
@@ -220,7 +220,7 @@ class QntmJumpTrace:
         x_max = max_data + 10*range_data
         x_min = min_data - 10*range_data
         n_bins = int(n_bins * (x_max-x_min)/(max_data-min_data))
-        self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), bins=n_bins, range=(x_min, x_max))
+        self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins=n_bins, range=(x_min, x_max))
 
         # TODO: do we want these bounds? I encountered that diong this it sometimes gives errors when 
         # trying to fit two Gaussians to data that is only one Gaussian, because it just finds mu2 very
@@ -233,9 +233,8 @@ class QntmJumpTrace:
                                                                     (0, -np.inf, 0, 0, -np.inf, 0),
                                                                     (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)))
         else:
-            try:
-                self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
-
+            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
+        
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
@@ -417,7 +416,7 @@ class QntmJumpTrace:
 
         fmax = 1.
         df = 1. / len(ys)
-        pts_fft = len(ys) / 2
+        pts_fft = int(len(ys) / 2)
         fs1 = np.linspace(0, fmax / 2. - df, pts_fft)
         fs2 = np.linspace(fmax / 2., df, pts_fft)
         fs = np.append(fs1, -fs2)
@@ -435,8 +434,6 @@ class QntmJumpTrace:
         if self.fitresult_gauss is None:
             self._double_gauss_routine(n_bins, dbl_gauss_p0)
 
-        # R = out.params["A2"].value / out.params["A1"].value
-        #TODO: does it have to be this way or could it also be the inverse?
         R = self.fitresult_gauss.params["mu2"].value / self.fitresult_gauss.params["mu1"].value
 
         # Calculating and plotting PSD
@@ -509,7 +506,6 @@ def calculate_PSD(ys):
     fs1 = np.linspace(0, fmax / 2.-df, pts_fft)
     fs2 = np.linspace(fmax / 2., df, pts_fft)
     fs = np.append(fs1, -fs2)
-    #print(len(fs), len(ys_fft))
     return fs, ys_fft
 
 
