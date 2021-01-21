@@ -135,21 +135,31 @@ class QntmJumpTrace:
         @param start_param_guess: starting parameters for the fitting algorithm, expects iterable of length 6 with
             [amplitude1, mean1, standard deviation1, amplitude2, mean2, standard deviation1], if None
             cqed.utils.fit_functions.dbl_gaussian_guess_means and gaussian_guess_sigma_A are used
-        @return: (tuple) (fit parameters, convergence matrix)
+        @return: out (output of the lmfit.minimize method)
         """
 
         if start_param_guess is None:
-            mu1, mu2 = fitf.dbl_gaussian_guess_means(xdata, ydata)
-            sig, c = fitf.gaussian_guess_sigma_A(xdata, ydata)
-            start_param_guess = [c, mu1, sig, c, mu2, sig]
-
-        fit, conv = curve_fit(fitf.dbl_gaussian, xdata, ydata, p0=start_param_guess, **kwargs)
+            mu1, mu2 = fitf.dbl_gaussian_guess_means(xdata, ydata, threshold=0.1) 
+            sig, c = fitf.gaussian_guess_sigma_A(xdata, ydata, threshold=0.2)    
+            min_data = np.min(xdata)
+            max_data = np.max(xdata)      
+            params = Parameters()
+            params.add('c1', value=c, min=0.0, max=5*c)
+            params.add('c2', value=c, min=0.0, max=5*c)
+            params.add('mu1', value=mu1, min=min_data, max=max_data)
+            params.add('delta', value=0, min=0., max=max_data-min_data)
+            params.add('mu2', expr='mu1+delta')
+            params.add('sig1', value=sig, min=0.05*sig, max=20*sig)
+            params.add('sig2', value=sig, min=0.05*sig, max=20*sig)
+        
+        out = minimize(fitf.residual, params, args=(xdata, ydata, fitf.dbl_gaussian))
+        # fit, conv = curve_fit(fitf.dbl_gaussian, xdata, ydata, p0=start_param_guess, **kwargs)
 
         # ensure that the gaussian with smaller mean is the first set of data
-        if fit[4] < fit[1]:
-            fit = np.array([*fit[3:], *fit[:3]])
+        # if fit[4] < fit[1]:
+        #     fit = np.array([*fit[3:], *fit[:3]])
 
-        return fit, conv
+        return out #fit, conv
 
     @staticmethod
     def _latching_filter(arr, means, sigm):
@@ -204,10 +214,19 @@ class QntmJumpTrace:
         Histogram the real part of the rotated data all at once, i.e. flatten the input array in case it's 2d
         then fit a double gaussian distribution
         """
+        min_data = np.min(self.integrated_data_rot.real.flatten())
+        max_data = np.max(self.integrated_data_rot.real.flatten())
+        range_data = max_data - min_data
+        x_max = max_data + 10*range_data
+        x_min = min_data - 10*range_data
+        n_bins = int(n_bins * (x_max-x_min)/(max_data-min_data))
+        self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), bins=n_bins, range=(x_min, x_max))
 
-        self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins)
-
+        # TODO: do we want these bounds? I encountered that diong this it sometimes gives errors when 
+        # trying to fit two Gaussians to data that is only one Gaussian, because it just finds mu2 very
+        # far away such that only it's tail overlaps the data and it ends up resuting on unrealistic results
         if dbl_gauss_p0 is not None:
+            # TODO: fix this case
             self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
                                                                 start_param_guess=dbl_gauss_p0,
                                                                 bounds=(
@@ -215,15 +234,8 @@ class QntmJumpTrace:
                                                                     (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)))
         else:
             try:
-                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
-                                                                    bounds=((0, -np.inf, 0, 0, -np.inf, 0),
-                                                                            (np.inf, np.inf, np.inf, np.inf,
-                                                                             np.inf, np.inf)))
-            except RuntimeError:
-                self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], maxfev=int(1e4),
-                                                                    bounds=((0, -np.inf, 0, 0, -np.inf, 0),
-                                                                            (np.inf, np.inf, np.inf, np.inf,
-                                                                             np.inf, np.inf)))
+                self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1])
+
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
