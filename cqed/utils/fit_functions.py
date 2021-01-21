@@ -60,7 +60,7 @@ def dbl_gaussian_guess_means(xdat, ydat, threshold=0.1):
     ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
     indices = []
     for i in ii[0]:
-        if i != 0 and i != m - 1:
+        if i > 0 and i < m - 1:
             indices.append(i)
     if len(indices) == 0:
         # If there is no central minimum

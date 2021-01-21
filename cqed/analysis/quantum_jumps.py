@@ -88,6 +88,7 @@ class QntmJumpTrace:
         self.fs = None
         self.rate_lh_psd = None
         self.rate_hl_psd = None
+        self.fit_accuracy_psd = None
         self.fitresult_lorentzian = None
         self.min_data = None
         self.max_data = None
@@ -472,6 +473,9 @@ class QntmJumpTrace:
             self.rate_lh_psd = Gamma1 / self.dt * self.n_integration
             self.rate_hl_psd = Gamma2 / self.dt * self.n_integration
 
+        # Calculate measure of fit accurazy
+        self.fit_accuracy_psd = self.fitresult_gauss.redchi * self.fitresult_lorentzian.redchi
+
     def plot_psd_analysis(self, figsize=(12, 4)):
 
         fig, axes = plt.subplots(1, 2, figsize=figsize)
@@ -555,7 +559,7 @@ def guess_x1_x2(xdat, ydat, plot=False):
     ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
     indices = []
     for i in ii[0]:
-        if i != 0 and i!=m-1:
+        if i > 0 and i < m-1:
             indices.append(i)
     if len(indices)==0:
         # If there is no central minimum
@@ -569,6 +573,7 @@ def guess_x1_x2(xdat, ydat, plot=False):
     else:
         # If it found more than one local minimum
         i = np.min(indices)
+        print(i)
         ix1 = np.argmax(ydat[0:i])
         ix2 = i + np.argmax(ydat[i:m-1])
 
