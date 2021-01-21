@@ -149,7 +149,7 @@ class QntmJumpTrace:
             params.add('c1', value=c, min=0.0, max=5*c)
             params.add('c2', value=c, min=0.0, max=5*c)
             params.add('mu1', value=mu1, min=min_data, max=max_data)
-            params.add('delta', value=mu2, min=0.0, max=max_data-min_data)
+            params.add('delta', value=mu2-mu1, min=0.0, max=max_data-min_data)
             params.add('mu2', expr='mu1+delta')
             params.add('sig1', value=sig, min=0.05*sig, max=20*sig)
             params.add('sig2', value=sig, min=0.05*sig, max=20*sig)
@@ -216,15 +216,14 @@ class QntmJumpTrace:
         Histogram the real part of the rotated data all at once, i.e. flatten the input array in case it's 2d
         then fit a double gaussian distribution
         """
-        min_data = np.min(self.integrated_data_rot.real.flatten())
-        max_data = np.max(self.integrated_data_rot.real.flatten())
-        range_data = max_data - min_data
-        x_max = max_data + 10*range_data
-        x_min = min_data - 10*range_data
-        n_bins = int(n_bins * (x_max-x_min)/(max_data-min_data))
+        self.min_data = np.min(self.integrated_data_rot.real.flatten())
+        self.max_data = np.max(self.integrated_data_rot.real.flatten())
+        range_data = self.max_data - self.min_data
+        x_max = self.max_data + 10*range_data
+        x_min = self.min_data - 10*range_data
+        n_bins = int(n_bins * (x_max-x_min)/(self.max_data-self.min_data))
         self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins=n_bins, range=(x_min, x_max))
-        self.min_data = np.min(self.raw_hist[0])
-        self.max_data = np.max(self.raw_hist[0]) 
+
 
         # TODO: do we want these bounds? I encountered that diong this it sometimes gives errors when 
         # trying to fit two Gaussians to data that is only one Gaussian, because it just finds mu2 very
@@ -424,7 +423,6 @@ class QntmJumpTrace:
         fs1 = np.linspace(0, fmax / 2. - df, pts_fft)
         fs2 = np.linspace(fmax / 2., df, pts_fft)
         fs = np.append(fs1, -fs2)
-        # print(len(fs), len(ys_fft))
         return fs, ys_fft
 
     def psd_pipeline(self, n_bins=100, dbl_gauss_p0=None, m_guess=0.8e-1, gamma_guess=1e-4):
