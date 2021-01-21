@@ -476,9 +476,9 @@ class QntmJumpTrace:
 
         fig, axes = plt.subplots(1, 2, figsize=figsize)
         axes[0].plot(self.raw_hist[0], self.raw_hist[1], 'bo')
-        axes[0].plot(self.raw_hist[0], fitf.dbl_gaussian(self.raw_hist[0], *self.fitresult_gauss), 'r')
-        axes[0].axvline(self.params["mu1"].value, color='r')
-        axes[0].axvline(self.params["mu2"].value, color='r')
+        axes[0].plot(self.raw_hist[0], fitf.dbl_gaussian(self.raw_hist[0], self.fitresult_gauss.params), 'r')
+        axes[0].axvline(self.fitresult_gauss.params["mu1"].value, color='r')
+        axes[0].axvline(self.fitresult_gauss.params["mu2"].value, color='r')
         axes[0].set_xlabel('I (arb. un.)')
         axes[0].set_ylabel('Counts')
 
