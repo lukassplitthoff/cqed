@@ -544,23 +544,31 @@ def guess_x1_x2(xdat, ydat, plot=False):
         m2-=1
 
     n = 2*int(0.1*(m2-m1))+1
-    y_smoothed = savgol_filter(ydat[m1:m2], n, 3)
-    y_smoothed = savgol_filter(y_smoothed, n, 3)
-    y_smoothed = savgol_filter(y_smoothed, n, 3)
+    if n>3:
+        y_smoothed = savgol_filter(ydat, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+    else:
+        y_smoothed = ydat
     ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
-    ii = ii[0]
-    if len(ii)==0:
+    indices = []
+    for i in ii[0]:
+        if i != 0 and i!=m-1:
+            indices.append(i)
+    if len(indices)==0:
         # If there is no central minimum
         ix1 = np.argmax(ydat)
         ix2 = ix1
-    elif len(ii)==1:
+    elif len(indices)==1:
         # If there is just one local minimum (ideal case)
-        i = ii[0]
+        i = indices[0]
         ix1 = np.argmax(ydat[0:i])
         ix2 = i + np.argmax(ydat[i:m-1])
     else:
         # If it found more than one local minimum
-        i = np.min(ii)
+        i = np.min(indices)
         ix1 = np.argmax(ydat[0:i])
         ix2 = i + np.argmax(ydat[i:m-1])
 
@@ -591,6 +599,15 @@ def guess_sigma_A(xdat, ydat, plot=False):
         m2-=1
 
     sigma_guess = 0.15*(xdat[m2]-xdat[m1])
+    n = 2*int(0.1*(m2-m1))+1
+    if n>3:
+        y_smoothed = savgol_filter(ydat, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+        y_smoothed = savgol_filter(y_smoothed, n, 3)
+    else:
+        y_smoothed = ydat
     y_max = ydat[np.argmax(ydat)]
     A_guess = 0.5 * y_max * np.sqrt(2*np.pi*sigma_guess**2)
 

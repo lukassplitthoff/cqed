@@ -58,21 +58,25 @@ def dbl_gaussian_guess_means(xdat, ydat, threshold=0.1):
         y_smoothed = ydat
 
     ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
-    ii = ii[0]
-    if len(ii) == 0:
+    indices = []
+    for i in ii[0]:
+        if i != 0 and i != m - 1:
+            indices.append(i)
+    if len(indices) == 0:
         # If there is no central minimum
         ix1 = np.argmax(ydat)
         ix2 = ix1
-    elif len(ii) == 1:
+    elif len(indices) == 1:
         # If there is just one local minimum (ideal case)
-        i = ii[0]
+        i = indices[0]
         ix1 = np.argmax(ydat[0:i])
         ix2 = i + np.argmax(ydat[i:m - 1])
     else:
         # If it found more than one local minimum
-        i = np.min(ii)
+        i = np.min(indices)
         ix1 = np.argmax(ydat[0:i])
         ix2 = i + np.argmax(ydat[i:m - 1])
+
 
     return xdat[ix1], xdat[ix2]
 
