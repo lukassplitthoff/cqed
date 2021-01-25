@@ -444,9 +444,9 @@ class QntmJumpTrace:
         # calculating the error of R based on the fit uncertainties of c1, c2
         R = self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value
         self._err_R = np.sqrt((-self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value**2
-                        * self.fitresult_gauss.params["c1"].stderr)**2 + (1. / self.fitresult_gauss.params["c1"].value
+                               * self.fitresult_gauss.params["c1"].stderr)**2 + (1. / self.fitresult_gauss.params["c1"].value
                                                                           * self.fitresult_gauss.params["c2"].stderr)**2
-                       )
+                              )
 
         # Calculating and plotting PSD
         for i in range(self.dat_dims[0]):
