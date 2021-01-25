@@ -4,6 +4,7 @@ from xarray import merge
 import numpy as np
 import scipy.linalg
 
+
 def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_dir='D:/Data'):
     """    
     Initialise or create a QCoDeS database in D:/Data/folder_name/db_name 
@@ -49,6 +50,7 @@ def db_to_xarray(ind, **kwargs):
 
     return ds
 
+
 def max_variance_angle(data):
     """
     Find the angle of rotation for a complex dataset, which maximizes the variance of the data along the real axis
@@ -68,6 +70,7 @@ def max_variance_angle(data):
 
     theta = np.arctan(eigvec1[0] / eigvec1[1])
     return theta
+
 
 def rotate_data(data, theta):
     """
