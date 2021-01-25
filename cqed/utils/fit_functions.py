@@ -29,14 +29,14 @@ def dbl_gaussian(x, params):
 
 
 def dbl_gaussian_guess_means(xdat, ydat, threshold=0.1):
-    '''
+    """
     Calculates initial guesses for the two means for a double Gaussian fit.
     After smoothing the data, it first finds a local minimum to split the data
     in two halfs, with a peak in each half. It then finds the maximum at each
     side of the local minimum to estimate x1 and x2, the centers of the two
     Gaussian peaks. If there is no central local minimum, it finds the maximum
     of the data and returns it as the guess for both peaks.
-    '''
+    """
 
     M = np.max(ydat)
     m = len(ydat)
@@ -48,7 +48,7 @@ def dbl_gaussian_guess_means(xdat, ydat, threshold=0.1):
         m2 -= 1
 
     n = 2*int(0.1*(m2-m1))+1
-    if n>3:
+    if n > 3:
         y_smoothed = savgol_filter(ydat, n, 3)
         y_smoothed = savgol_filter(y_smoothed, n, 3)
         y_smoothed = savgol_filter(y_smoothed, n, 3)
@@ -77,29 +77,28 @@ def dbl_gaussian_guess_means(xdat, ydat, threshold=0.1):
         ix1 = np.argmax(ydat[0:i])
         ix2 = i + np.argmax(ydat[i:m - 1])
 
-
     return xdat[ix1], xdat[ix2]
 
 
 def gaussian_guess_sigma_A(xdat, ydat, threshold=0.2):
-    '''
+    """
     Calculates some initial guess for
     sigma and A for a double Gaussian fit.
-    '''
+    """
 
     M = np.max(ydat)
     m = len(ydat)
     m1 = 0
-    while ydat[m1]<threshold*M:
-        m1+=1
+    while ydat[m1] < threshold*M:
+        m1 += 1
     m2 = m-1
-    while ydat[m2]<threshold*M:
-        m2-=1
+    while ydat[m2] < threshold*M:
+        m2 -= 1
 
     sigma_guess = 0.15*(xdat[m2]-xdat[m1])
 
     n = 2*int(0.1*(m2-m1))+1
-    if n>3:
+    if n > 3:
         y_smoothed = savgol_filter(ydat, n, 3)
         y_smoothed = savgol_filter(y_smoothed, n, 3)
         y_smoothed = savgol_filter(y_smoothed, n, 3)
@@ -133,9 +132,9 @@ def lin_func(x, m, c):
 
 
 def QPP_Lorentzian(f, params):
-    '''
+    """
     Lorentzian function.
-    '''
+    """
     Gamma = params["Gamma"]
     a = params["a"]
     b = params["b"]
