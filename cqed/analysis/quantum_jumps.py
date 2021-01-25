@@ -94,6 +94,8 @@ class QntmJumpTrace:
         self.fitresult_lorentzian = None
         self.min_data = None
         self.max_data = None
+        self.rate_lh_psd_err = None
+        self.rate_hl_psd_err = None
         
         # attributes for the hidden markov pipeline
         self.hmm_model = hmm.GaussianHMM(n_components=2)
@@ -439,7 +441,12 @@ class QntmJumpTrace:
         if self.fitresult_gauss is None:
             self._double_gauss_routine(n_bins, dbl_gauss_p0)
 
+        # calculating the error of R based on the fit uncertainties of c1, c2
         R = self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value
+        self._err_R = np.sqrt((-self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value**2
+                        * self.fitresult_gauss.params["c1"].stderr)**2 + (1. / self.fitresult_gauss.params["c1"].value
+                                                                          * self.fitresult_gauss.params["c2"].stderr)**2
+                       )
 
         # Calculating and plotting PSD
         for i in range(self.dat_dims[0]):
@@ -463,22 +470,35 @@ class QntmJumpTrace:
         self.fitresult_lorentzian = out
 
         Gamma = out.params["Gamma"].value
+        self._err_Gamma = out.params["Gamma"].stderr
 
         Gamma1 = 2. * Gamma / (1. + R)
+        Gamma1_err = np.sqrt((2. / (1. + R) * self._err_Gamma)**2 + (-2. * Gamma / (1. + R)**2 * self._err_R)**2)
+
         Gamma2 = 2. * R * Gamma / (1. + R)
+        Gamma2_err = np.sqrt((2. * R / (1. + R) * self._err_Gamma)**2
+                             + ((2. * Gamma / (1. + R) - 2. * Gamma * R / (1. + R)**2) * self._err_R)**2)
 
         # multiply the rates with the integration number, because the PSD and its rates is calculated from the raw,
         # unintegrated data
         if self.fitresult_gauss.params["mu1"].value > self.fitresult_gauss.params["mu2"].value:
             self.rate_lh_psd = Gamma2 / self.dt * self.n_integration
-            self.rate_hl_psd = Gamma1 / self.dt * self.n_integration
+            self.rate_lh_psd_err = Gamma2_err / self.dt * self.n_integration
 
+            self.rate_hl_psd = Gamma1 / self.dt * self.n_integration
+            self.rate_hl_psd_err = Gamma1_err / self.dt * self.n_integration
         else:
             self.rate_lh_psd = Gamma1 / self.dt * self.n_integration
-            self.rate_hl_psd = Gamma2 / self.dt * self.n_integration
+            self.rate_lh_psd_err = Gamma1_err / self.dt * self.n_integration
 
-        # Calculate measure of fit accurazy
+            self.rate_hl_psd = Gamma2 / self.dt * self.n_integration
+            self.rate_hl_psd_err = Gamma2_err / self.dt * self.n_integration
+
+        # Calculate measure of fit accuracy
         self.fit_accuracy_psd = 1. / (self.fitresult_gauss.redchi * self.fitresult_lorentzian.redchi)
+
+        # Calculate errors for Gamma1, Gamma2
+
 
     def plot_psd_analysis(self, figsize=(12, 4)):
 
