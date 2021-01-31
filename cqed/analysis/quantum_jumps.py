@@ -84,6 +84,9 @@ class QntmJumpTrace:
         self.n_sigma_filter = 1.
         self.fitresult_gauss = None
         self._dwellhist_guess = [-0.01, 1000.] # some hardcoded guesses for the linear fit of dwell time histogram
+        self._filter_params = None
+        self.rate_lh_err = 0
+        self.rate_hl_err = 0
 
         # attributes for PSD pipeline
         self.ys_fft = np.zeros(self.dat_dims[1])
@@ -127,6 +130,7 @@ class QntmJumpTrace:
          the middle of the corresponding bins
          @param data: array to histogram
          @param n_bins: number of bins for the histogramming
+         @param range: range passed to np.histogram
          @return: tuple of: middle of bins, normalized occurrence"""
 
         n, bins = np.histogram(data, bins=n_bins, density=False, range=range)
@@ -239,7 +243,8 @@ class QntmJumpTrace:
                                                                     (0, -np.inf, 0, 0, -np.inf, 0),
                                                                     (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)))
         else:
-            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], min_data=self.min_data, max_data=self.max_data)
+            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
+                                                          min_data=self.min_data, max_data=self.max_data)
             average_sigma = 0.5 * (self.fitresult_gauss.params["sig1"] + self.fitresult_gauss.params["sig2"])
             self.SNR = np.abs((self.fitresult_gauss.params["mu2"] - self.fitresult_gauss.params["mu1"]) / average_sigma)
         
@@ -269,64 +274,51 @@ class QntmJumpTrace:
 
         for i in range(self.dat_dims[0]):
             if not override_gaussfit:
+                sg1 = self.n_sigma_filter * self.fitresult_gauss.params["sig1"].value
+                sg2 = self.n_sigma_filter * self.fitresult_gauss.params["sig2"].value
                 self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
-                                                                              self.fitresult_gauss[[1, 4]],
-                                                                              n_sigma_filter
-                                                                              * self.fitresult_gauss[[2, 5]])
-                self.dwell_l.append(_dwell_l)
-                self.dwell_h.append(_dwell_h)
+                                                                              (self.fitresult_gauss.params["mu1"].value,
+                                                                               self.fitresult_gauss.params["mu2"].value),
+                                                                              (sg1, sg2))
+                self.dwell_l = np.concatenate((self.dwell_l, _dwell_l))
+                self.dwell_h = np.concatenate((self.dwell_h, _dwell_h))
 
             else:
-                self.fitresult_gauss = np.array([1., state_filter_prms[0][0], state_filter_prms[1][0],
-                                                 1., state_filter_prms[0][1], state_filter_prms[1][1]])
+                self._filter_params = state_filter_prms
 
                 self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
-                                                                              self.fitresult_gauss[[1, 4]],
+                                                                              self._filter_params[0],
                                                                               n_sigma_filter
-                                                                              * self.fitresult_gauss[[2, 5]])
-                self.dwell_l.append(_dwell_l)
-                self.dwell_h.append(_dwell_h)
+                                                                              * self._filter_params[1])
+                self.dwell_l = np.concatenate((self.dwell_l, _dwell_l))
+                self.dwell_h = np.concatenate((self.dwell_h, _dwell_h))
 
-            try:
-                n_l, nums_l = self._create_hist(self.dwell_l, np.max(self.dwell_l))
-                n_h, nums_h = self._create_hist(self.dwell_h, np.max(self.dwell_h))
-                self.hist_dwell_l[i] = n_l, nums_l
-                self.hist_dwell_h[i] = n_h, nums_h
+        self.hist_dwell_l = self._create_hist(self.dwell_l, np.arange(0, np.max(self.dwell_l)+1, 1), (0, np.max(self.dwell_l)))
+        self.hist_dwell_h = self._create_hist(self.dwell_h, np.arange(0, np.max(self.dwell_h)+1, 1), (0, np.max(self.dwell_h)))
 
-            except ValueError:
-                self.hist_dwell_l[i] = None, None
-                self.hist_dwell_h[i] = None, None
 
-            if self.hist_dwell_h[i] is not None:
-                try:
-                    # since the histogram has zeros as entries, filter those before passing to curve_fit
-                    log_yl = np.log(self.hist_dwell_l[i][1])
-                    inds = np.where(np.isfinite(log_yl))[0]
-                    x_l = self.hist_dwell_l[i][0][inds]
-                    y_l = log_yl[inds]
+        # since the histogram has zeros as entries, filter those before passing to curve_fit
+        inds = np.where(self.hist_dwell_l[1] > 9)[0]
+        log_yl = np.log(self.hist_dwell_l[1][inds])
+        x_l = self.hist_dwell_l[0][inds]
 
-                    self.rate_lh[i], conv = curve_fit(fitf.lin_func, x_l, y_l, p0=[self._dwellhist_guess[0],
-                                                                          self._dwellhist_guess[1]])
+        self.rate_lh, conv = curve_fit(fitf.lin_func, x_l, log_yl, p0=[self._dwellhist_guess[0],
+                                                              self._dwellhist_guess[1]])
+        self.rate_lh_err = np.sqrt(np.diag(conv))
 
-                    # since the histogram has zeros as entries, filter those before passing to curve_fit
-                    log_yh = np.log(self.hist_dwell_h[i][1])
-                    inds = np.where(np.isfinite(log_yh))[0]
-                    x_h = self.hist_dwell_h[i][0][inds]
-                    y_h = log_yh[inds]
+        # since the histogram has zeros as entries, filter those before passing to curve_fit
+        inds = np.where(self.hist_dwell_h[1] > 9)[0]
+        log_yh = np.log(self.hist_dwell_h[1][inds])
+        x_h = self.hist_dwell_h[0][inds]
 
-                    self.rate_hl[i], conv = curve_fit(fitf.lin_func, x_h, y_h, p0=[self._dwellhist_guess[0],
-                                                                          self._dwellhist_guess[1]])
 
-                except ValueError:
-                    self.rate_lh[i] = np.array([np.nan, np.nan])
-                    self.rate_hl[i] = np.array([np.nan, np.nan])
-            else:
-                self.rate_lh[i] = np.array([np.nan, np.nan])
-                self.rate_hl[i] = np.array([np.nan, np.nan])
+        self.rate_hl, conv = curve_fit(fitf.lin_func, x_h, log_yh, p0=[self._dwellhist_guess[0],
+                                                              self._dwellhist_guess[1]])
+        self.rate_hl_err = np.sqrt(np.diag(conv))
 
         # rescale the rates to units of Hz
-        self.rate_lh[:, 0] = np.abs(self.rate_lh[:, 0] / self.dt)
-        self.rate_hl[:, 0] = np.abs(self.rate_hl[:, 0] / self.dt)
+        self.rate_lh[0] = np.abs(self.rate_lh[0] / self.dt)
+        self.rate_hl[0] = np.abs(self.rate_hl[0] / self.dt)
 
         return self
 
@@ -368,16 +360,16 @@ class QntmJumpTrace:
         if self.hist_dwell_h is None:
             pass
         else:
-            ax_dwell_hist.plot(self.hist_dwell_l[0][0], self.hist_dwell_l[0][1], 'o', mfc='none', label='low state')
-            ax_dwell_hist.plot(self.hist_dwell_h[0][0], self.hist_dwell_h[0][1], 'o', mfc='none', label='higher state')
+            ax_dwell_hist.plot(self.hist_dwell_l[0], self.hist_dwell_l[1], 'o', mfc='none', label='low state')
+            ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], 'o', mfc='none', label='higher state')
 
-            # if self.rate_lh is not None:
-            #     ax_dwell_hist.plot(self.hist_dwell_l[0][0], fitf.exp_func(self.hist_dwell_l[0][0], self.rate_lh[0][0],
-            #                                                             np.exp(self.rate_lh[0][1])), 'k')
-            #     ax_dwell_hist.plot(self.hist_dwell_h[0][0], fitf.exp_func(self.hist_dwell_h[0][0], self.rate_hl[0][0],
-            #                                                             np.exp(self.rate_hl[0][1])), 'k')
+            if self.rate_lh is not None:
+                ax_dwell_hist.plot(self.hist_dwell_l[0], fitf.exp_func(self.hist_dwell_l[0], -self.rate_lh[0],
+                                                                        np.exp(self.rate_lh[1])), 'k')
+                ax_dwell_hist.plot(self.hist_dwell_h[0], fitf.exp_func(self.hist_dwell_h[0], -self.rate_hl[0],
+                                                                        np.exp(self.rate_hl[1])), 'k')
 
-            ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0][0]), np.max(self.hist_dwell_h[0][0])]))
+            # ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0][0]), np.max(self.hist_dwell_h[0][0])]))
 
         ax_dwell_hist.set_yscale('log')
         ax_dwell_hist.set_title('histogram of dwell times')
@@ -385,22 +377,24 @@ class QntmJumpTrace:
         ax_dwell_hist.set_xlabel('dwell time')
         ax_dwell_hist.legend()
 
-        ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss[1] - self.n_sigma_filter * self.fitresult_gauss[2],
-                              self.fitresult_gauss[1] + self.n_sigma_filter * self.fitresult_gauss[2], alpha=0.4, color='tab:orange')
-        ax_trace.axhline(self.fitresult_gauss[1], ls='dashed', color='tab:orange')
-        ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss[4] - self.n_sigma_filter * self.fitresult_gauss[5],
-                              self.fitresult_gauss[4] + self.n_sigma_filter * self.fitresult_gauss[5], alpha=0.4, color='tab:green')
-        ax_trace.axhline(self.fitresult_gauss[4], ls='dashed', color='tab:green')
+        ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu1'] - self.n_sigma_filter * self.fitresult_gauss.params['sig1'],
+                              self.fitresult_gauss.params['mu1'] + self.n_sigma_filter * self.fitresult_gauss.params['sig1'], alpha=0.4, color='tab:orange')
+        ax_trace.axhline(self.fitresult_gauss.params['mu1'], ls='dashed', color='tab:orange')
+
+        ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu2'] - self.n_sigma_filter * self.fitresult_gauss.params['sig2'],
+                              self.fitresult_gauss.params['mu2'] + self.n_sigma_filter * self.fitresult_gauss.params['sig2'], alpha=0.4, color='tab:green')
+        ax_trace.axhline(self.fitresult_gauss.params['mu2'], ls='dashed', color='tab:green')
+
         ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
         ax_trace.set_xlim(-1, 401)
-        ax_trace.set_ylim(self.fitresult_gauss[1] - 3 * self.fitresult_gauss[2],
-                          self.fitresult_gauss[4] + 3 * self.fitresult_gauss[5])
+        ax_trace.set_ylim(self.fitresult_gauss.params['mu1'] - 3 * self.fitresult_gauss.params['sig1'],
+                          self.fitresult_gauss.params['mu2'] + 3 * self.fitresult_gauss.params['sig2'])
         ax_trace.set_title('rotated data trace excerpt')
         ax_trace.set_xlabel('timestep')
         ax_trace.set_ylabel('I (arb. un.)')
         ax_histy.barh(self.raw_hist[0], self.raw_hist[1], (self.raw_hist[0][1] - self.raw_hist[0][0]) * 0.8,
                       label='rot. data')
-        ax_histy.plot(fitf.dbl_gaussian(self.raw_hist[0], *self.fitresult_gauss), self.raw_hist[0], 'k', label='fit')
+        ax_histy.plot(fitf.dbl_gaussian(self.raw_hist[0], self.fitresult_gauss.params), self.raw_hist[0], 'k', label='fit')
         ax_histy.tick_params(direction='in', labelleft=False)
         ax_histy.set_ylim(ax_trace.get_ylim())
         ax_histy.set_xlabel('norm. occurence')
@@ -408,9 +402,9 @@ class QntmJumpTrace:
         ax_histy.legend()
 
         ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[0][:500], 'k.-', label='real rotated data')
-        ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[0][:500] * (np.abs(self.fitresult_gauss[1])
-                                                                            + self.fitresult_gauss[4])
-                                                    + self.fitresult_gauss[1]), color='red', label='state assignment')
+        ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[0][:500] * (np.abs(self.fitresult_gauss.params['mu1'])
+                                                                            + self.fitresult_gauss.params['mu2'])
+                                                    + self.fitresult_gauss.params['mu1']), color='red', label='state assignment')
         ax_state_assign.set_xlabel('timestep')
         ax_state_assign.set_ylabel('I (arb. un.)')
         ax_state_assign.legend()
