@@ -139,7 +139,7 @@ class QntmJumpTrace:
         return x_axis, n
 
     @staticmethod
-    def _fit_dbl_gaussian(xdata, ydata, min_data=-np.inf, max_data=np.inf, start_param_guess=None, **kwargs):
+    def _fit_dbl_gaussian(xdata, ydata, min_data=-np.inf, max_data=np.inf, start_param_guess=None):
         """ Fit a double gaussian distribution using scipy.curve_fit.
         @param xdata: (array)
         @param ydata: (array)
@@ -160,6 +160,14 @@ class QntmJumpTrace:
             params.add('mu2', value=mu2, min=min_data, max=max_data) #expr='mu1+delta'
             params.add('sig1', value=sig, min=0.05*sig, max=20*sig)
             params.add('sig2', value=sig, min=0.05*sig, max=20*sig)
+        else:
+            params = Parameters()
+            params.add('c1', value=start_param_guess[0], min=0.0, max=np.inf)
+            params.add('c2', value=start_param_guess[3], min=0.0, max=np.inf)
+            params.add('mu1', value=start_param_guess[1], min=min_data, max=max_data)
+            params.add('mu2', value=start_param_guess[4], min=min_data, max=max_data)
+            params.add('sig1', value=start_param_guess[2], min=0.0, max=20*start_param_guess[2])
+            params.add('sig2', value=start_param_guess[5], min=0.0, max=20*start_param_guess[5])
         
         out = minimize(fitf.residual, params, args=(xdata, ydata, fitf.dbl_gaussian))
         # fit, conv = curve_fit(fitf.dbl_gaussian, xdata, ydata, p0=start_param_guess, **kwargs)
@@ -237,14 +245,12 @@ class QntmJumpTrace:
         # far away such that only it's tail overlaps the data and it ends up resuting on unrealistic results
         if dbl_gauss_p0 is not None:
             # TODO: fix this case
-            self.fitresult_gauss, conv = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
-                                                                start_param_guess=dbl_gauss_p0,
-                                                                bounds=(
-                                                                    (0, -np.inf, 0, 0, -np.inf, 0),
-                                                                    (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf)))
-        else:
             self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
-                                                          min_data=self.min_data, max_data=self.max_data)
+                                                          start_param_guess=dbl_gauss_p0, min_data=self.min_data,
+                                                          max_data=self.max_data)
+        else:
+            self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1], min_data=self.min_data,
+                                                          max_data=self.max_data)
             average_sigma = 0.5 * (self.fitresult_gauss.params["sig1"] + self.fitresult_gauss.params["sig2"])
             self.SNR = np.abs((self.fitresult_gauss.params["mu2"] - self.fitresult_gauss.params["mu1"]) / average_sigma)
         
