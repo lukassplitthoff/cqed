@@ -276,10 +276,16 @@ class QntmJumpTrace:
             if not override_gaussfit:
                 sg1 = self.n_sigma_filter * self.fitresult_gauss.params["sig1"].value
                 sg2 = self.n_sigma_filter * self.fitresult_gauss.params["sig2"].value
-                self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
-                                                                              (self.fitresult_gauss.params["mu1"].value,
-                                                                               self.fitresult_gauss.params["mu2"].value),
-                                                                              (sg1, sg2))
+                if self.fitresult_gauss.params["mu2"].value > self.fitresult_gauss.params["mu1"].value:
+                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
+                                                                                  (self.fitresult_gauss.params["mu1"].value,
+                                                                                   self.fitresult_gauss.params["mu2"].value),
+                                                                                  (sg1, sg2))
+                else:
+                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
+                                                                                  (self.fitresult_gauss.params["mu2"].value,
+                                                                                   self.fitresult_gauss.params["mu1"].value),
+                                                                                  (sg2, sg1))
                 self.dwell_l = np.concatenate((self.dwell_l, _dwell_l))
                 self.dwell_h = np.concatenate((self.dwell_h, _dwell_h))
 
@@ -387,8 +393,13 @@ class QntmJumpTrace:
 
         ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
         ax_trace.set_xlim(-1, 401)
-        ax_trace.set_ylim(self.fitresult_gauss.params['mu1'] - 3 * self.fitresult_gauss.params['sig1'],
-                          self.fitresult_gauss.params['mu2'] + 3 * self.fitresult_gauss.params['sig2'])
+        if self.fitresult_gauss.params['mu1'] < self.fitresult_gauss.params['mu2']:
+            ax_trace.set_ylim(self.fitresult_gauss.params['mu1'] - 3 * self.fitresult_gauss.params['sig1'],
+                              self.fitresult_gauss.params['mu2'] + 3 * self.fitresult_gauss.params['sig2'])
+        else:
+            ax_trace.set_ylim(self.fitresult_gauss.params['mu2'] - 3 * self.fitresult_gauss.params['sig2'],
+                              self.fitresult_gauss.params['mu1'] + 3 * self.fitresult_gauss.params['sig1'])
+
         ax_trace.set_title('rotated data trace excerpt')
         ax_trace.set_xlabel('timestep')
         ax_trace.set_ylabel('I (arb. un.)')
