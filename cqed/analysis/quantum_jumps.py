@@ -305,27 +305,30 @@ class QntmJumpTrace:
                 self.dwell_l = np.concatenate((self.dwell_l, _dwell_l))
                 self.dwell_h = np.concatenate((self.dwell_h, _dwell_h))
 
-        self.hist_dwell_l = self._create_hist(self.dwell_l, np.arange(0, np.max(self.dwell_l)+1, 1), (0, np.max(self.dwell_l)))
-        self.hist_dwell_h = self._create_hist(self.dwell_h, np.arange(0, np.max(self.dwell_h)+1, 1), (0, np.max(self.dwell_h)))
+        bins_edges = np.histogram_bin_edges(self.dwell_l, bins='auto',
+                                            range=(np.min(self.dwell_l), np.max(self.dwell_l)))
+        self.hist_dwell_l = self._create_hist(self.dwell_l, bins_edges, (np.min(self.dwell_l), np.max(self.dwell_l)))
 
+        bins_edges = np.histogram_bin_edges(self.dwell_h, bins='auto',
+                                            range=(np.min(self.dwell_h), np.max(self.dwell_h)))
+        self.hist_dwell_h = self._create_hist(self.dwell_h, bins_edges, (np.min(self.dwell_h), np.max(self.dwell_h)))
 
         # since the histogram has zeros as entries, filter those before passing to curve_fit
-        inds = np.where(self.hist_dwell_l[1] > 9)[0]
-        log_yl = np.log(self.hist_dwell_l[1][inds])
+        log_yl = np.log(self.hist_dwell_l[1])
+        inds = np.where(np.isfinite(log_yl))[0]
         x_l = self.hist_dwell_l[0][inds]
 
-        self.rate_lh, conv = curve_fit(fitf.lin_func, x_l, log_yl, p0=[self._dwellhist_guess[0],
-                                                              self._dwellhist_guess[1]])
+        self.rate_lh, conv = curve_fit(fitf.lin_func, x_l, log_yl[inds], p0=[self._dwellhist_guess[0],
+                                                                             self._dwellhist_guess[1]])
         self.rate_lh_err = np.sqrt(np.diag(conv))
 
         # since the histogram has zeros as entries, filter those before passing to curve_fit
-        inds = np.where(self.hist_dwell_h[1] > 9)[0]
-        log_yh = np.log(self.hist_dwell_h[1][inds])
+        log_yh = np.log(self.hist_dwell_h[1])
+        inds = np.where(np.isfinite(log_yh))[0]
         x_h = self.hist_dwell_h[0][inds]
 
-
-        self.rate_hl, conv = curve_fit(fitf.lin_func, x_h, log_yh, p0=[self._dwellhist_guess[0],
-                                                              self._dwellhist_guess[1]])
+        self.rate_hl, conv = curve_fit(fitf.lin_func, x_h, log_yh[inds], p0=[self._dwellhist_guess[0],
+                                                                             self._dwellhist_guess[1]])
         self.rate_hl_err = np.sqrt(np.diag(conv))
 
         # rescale the rates to units of Hz
