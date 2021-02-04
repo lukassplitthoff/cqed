@@ -107,23 +107,24 @@ class QntmJumpTrace:
         self.rate_hl_hmm = None
         self.rate_lh_hmm = None
 
-    def hmm_pipeline(self, n_iter=100):
+    def hmm_pipeline(self, n_iter=100,n_bins=100,dbl_gauss_p0 = None):
         #base value for n_iter is set to 100 to improve convergence
         self.hmm_model.n_iter = n_iter
-        self.hmm_model.init_params = "cms" #tell the model we have an initial guess for covars means and startprob
+        self.hmm_model.init_params = "t" #tell the model which paramaters are not initialized
+        self.hmm_model.params="cmts" #allow model to update all parameters
         
         flattened_input = self.integrated_data_rot.real.reshape(-1, 1)
         seq_len = (np.ones(self.dat_dims[0], dtype=int)*self.dat_dims[1]/self.n_integration).astype(int)
         
-        #fit double gaussian to guess initial parmaeters if not already done
+        #fit double gaussian to guess initial parmaeters if not already done TODO: check is this is done correctly
         if self.fitresult_gauss is None:
             self._double_gauss_routine(n_bins, dbl_gauss_p0)
         
         #estimate the model parameters to improve convergence
-        h.startprob_ = np.array([fitresult_gauss[0],fitresult_gauss[3]])/np.sqrt(fitresult_gauss[0]**2+fitresult_gauss[3]**2) #the relative height of the peaks gives us an idea of the stratprob
+        self.hmm_model.startprob_ = np.array([self.fitresult_gauss.params["c1"],self.fitresult_gauss.params["c2"]])/(self.fitresult_gauss.params["c1"]+self.fitresult_gauss.params["c2"]) #the relative height of the peaks gives us an idea of the stratprob
         # there is no method for estimating the transition matrix (can do worst case maybe) h.transmat_
-        h.means_ = np.array([fitresult_gauss[1], fitresult_gauss[4]]) #corresponds to the means of the double gaussian fit
-        h.covars_ = np.array([fitresult_gauss[2], fitresult_gauss[5]]) #corresponds to the variance of the double gaussian fit TODO: add sqrt?
+        self.hmm_model.means_ = np.array([[self.fitresult_gauss.params["mu1"]], [self.fitresult_gauss.params["mu2"]]]) #corresponds to the means of the double gaussian fit
+        self.hmm_model.covars_ = np.array([[self.fitresult_gauss.params["sig1"]], [self.fitresult_gauss.params["sig2"]]]) #corresponds to the variance of the double gaussian fit TODO: add sqrt?
         
         self.hmm_model.fit(flattened_input, lengths=seq_len)
         # self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape(self.dat_dims)
