@@ -344,8 +344,8 @@ class QntmJumpTrace:
         @return: matplotlib figure with multiple axes showing the analysis results.
         """
 
-        plt.figure(1, figsize=figsize)
-        plt.gcf()
+        fig = plt.figure(1, figsize=figsize)
+        fig.clf()
         dim_ax_raw = [0.05, 0.7, 0.2, 0.25]
         dim_ax_rot = [0.05, 0.375, 0.2, 0.25]
         dim_ax_dwell_hist = [0.05, 0.05, 0.2, 0.25]
@@ -353,12 +353,12 @@ class QntmJumpTrace:
         dim_ax_histy = [0.9, 0.55, 0.09, 0.4]
         dim_ax_state_assign = [0.3, 0.05, 0.69, 0.4]
 
-        ax_raw = plt.axes(dim_ax_raw)
-        ax_rot = plt.axes(dim_ax_rot)
-        ax_dwell_hist = plt.axes(dim_ax_dwell_hist)
-        ax_trace = plt.axes(dim_ax_trace)
-        ax_histy = plt.axes(dim_ax_histy)
-        ax_state_assign = plt.axes(dim_ax_state_assign)
+        ax_raw = fig.add_axes(dim_ax_raw)
+        ax_rot = fig.add_axes(dim_ax_rot)
+        ax_dwell_hist = fig.add_axes(dim_ax_dwell_hist)
+        ax_trace = fig.add_axes(dim_ax_trace)
+        ax_histy = fig.add_axes(dim_ax_histy)
+        ax_state_assign = fig.add_axes(dim_ax_state_assign)
 
         ax_raw.hist2d(self.raw_data[0].real, self.raw_data[0].imag, bins=50)
         ax_raw.axis('equal')
@@ -394,11 +394,11 @@ class QntmJumpTrace:
 
         ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu1'] - self.n_sigma_filter * self.fitresult_gauss.params['sig1'],
                               self.fitresult_gauss.params['mu1'] + self.n_sigma_filter * self.fitresult_gauss.params['sig1'], alpha=0.4, color='tab:orange')
-        ax_trace.axhline(self.fitresult_gauss.params['mu1'], ls='dashed', color='tab:orange')
+        ax_trace.axhline(self.fitresult_gauss.params['mu1'].value, ls='dashed', color='tab:orange')
 
         ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu2'] - self.n_sigma_filter * self.fitresult_gauss.params['sig2'],
                               self.fitresult_gauss.params['mu2'] + self.n_sigma_filter * self.fitresult_gauss.params['sig2'], alpha=0.4, color='tab:green')
-        ax_trace.axhline(self.fitresult_gauss.params['mu2'], ls='dashed', color='tab:green')
+        ax_trace.axhline(self.fitresult_gauss.params['mu2'].value, ls='dashed', color='tab:green')
 
         ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
         ax_trace.set_xlim(-1, 401)
@@ -428,6 +428,8 @@ class QntmJumpTrace:
         ax_state_assign.set_xlabel('timestep')
         ax_state_assign.set_ylabel('I (arb. un.)')
         ax_state_assign.legend()
+
+        return fig
 
     @staticmethod
     def _calculate_PSD(ys):
