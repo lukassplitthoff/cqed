@@ -103,17 +103,27 @@ class QntmJumpTrace:
         # attributes for the hidden markov pipeline
         self.hmm_model = hmm.GaussianHMM(n_components=2)
         self.state_vec_hmm = []
-        self.hmm_rates = []
+        self.hmm_rates = [] #is this parameter in use?
         self.rate_hl_hmm = None
         self.rate_lh_hmm = None
 
-    def hmm_pipeline(self, n_iter=20):
-
+    def hmm_pipeline(self, n_iter=100):
+        #base value for n_iter is set to 100 to improve convergence
         self.hmm_model.n_iter = n_iter
 
         flattened_input = self.integrated_data_rot.real.reshape(-1, 1)
         seq_len = (np.ones(self.dat_dims[0], dtype=int)*self.dat_dims[1]/self.n_integration).astype(int)
-
+        
+        #fit double gaussian to guess initial parmaeters
+        if self.fitresult_gauss is None:
+            self._double_gauss_routine(n_bins, dbl_gauss_p0)
+        
+        #estimate the model parameters to improve convergence
+        h.startprob_ = np.array([fitresult_gauss[0],fitresult_gauss[3]])/np.sqrt(fitresult_gauss[0]**2+fitresult_gauss[3]**2) #the relative height of the peaks gives us an idea of the stratprob
+        # there is no method for estimating the transition matrix (can do worst case maybe) h.transmat_
+        h.means_ = np.array([fitresult_gauss[1], fitresult_gauss[4]]) #corresponds to the means of the double gaussian fit
+        h.covars_ = np.array([fitresult_gauss[2], fitresult_gauss[5]]) #corresponds to the variance of the double gaussian fit TODO: add sqrt?
+        
         self.hmm_model.fit(flattened_input, lengths=seq_len)
         # self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape(self.dat_dims)
 
