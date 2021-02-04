@@ -110,11 +110,12 @@ class QntmJumpTrace:
     def hmm_pipeline(self, n_iter=100):
         #base value for n_iter is set to 100 to improve convergence
         self.hmm_model.n_iter = n_iter
-
+        self.hmm_model.init_params = "cms" #tell the model we have an initial guess for covars means and startprob
+        
         flattened_input = self.integrated_data_rot.real.reshape(-1, 1)
         seq_len = (np.ones(self.dat_dims[0], dtype=int)*self.dat_dims[1]/self.n_integration).astype(int)
         
-        #fit double gaussian to guess initial parmaeters
+        #fit double gaussian to guess initial parmaeters if not already done
         if self.fitresult_gauss is None:
             self._double_gauss_routine(n_bins, dbl_gauss_p0)
         
