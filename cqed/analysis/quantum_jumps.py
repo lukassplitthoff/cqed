@@ -320,7 +320,7 @@ class QntmJumpTrace:
 
         self.rate_lh, conv = curve_fit(fitf.lin_func, x_l, log_yl[inds], p0=[self._dwellhist_guess[0],
                                                                              self._dwellhist_guess[1]])
-        self.rate_lh_err = np.sqrt(np.diag(conv))
+        self.rate_lh_err = np.sqrt(np.diag(conv)) / self.dt
 
         # since the histogram has zeros as entries, filter those before passing to curve_fit
         log_yh = np.log(self.hist_dwell_h[1])
@@ -329,7 +329,7 @@ class QntmJumpTrace:
 
         self.rate_hl, conv = curve_fit(fitf.lin_func, x_h, log_yh[inds], p0=[self._dwellhist_guess[0],
                                                                              self._dwellhist_guess[1]])
-        self.rate_hl_err = np.sqrt(np.diag(conv))
+        self.rate_hl_err = np.sqrt(np.diag(conv)) / self.dt
 
         # rescale the rates to units of Hz
         self.rate_lh[0] = np.abs(self.rate_lh[0] / self.dt)
