@@ -392,22 +392,40 @@ class QntmJumpTrace:
         ax_dwell_hist.set_xlabel('dwell time')
         ax_dwell_hist.legend()
 
-        ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu1'] - self.n_sigma_filter * self.fitresult_gauss.params['sig1'],
-                              self.fitresult_gauss.params['mu1'] + self.n_sigma_filter * self.fitresult_gauss.params['sig1'], alpha=0.4, color='tab:orange')
-        ax_trace.axhline(self.fitresult_gauss.params['mu1'].value, ls='dashed', color='tab:orange')
+        if self._filter_params is None:
+            ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu1'] - self.n_sigma_filter * self.fitresult_gauss.params['sig1'],
+                                  self.fitresult_gauss.params['mu1'] + self.n_sigma_filter * self.fitresult_gauss.params['sig1'], alpha=0.4, color='tab:orange')
+            ax_trace.axhline(self.fitresult_gauss.params['mu1'].value, ls='dashed', color='tab:orange')
 
-        ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu2'] - self.n_sigma_filter * self.fitresult_gauss.params['sig2'],
-                              self.fitresult_gauss.params['mu2'] + self.n_sigma_filter * self.fitresult_gauss.params['sig2'], alpha=0.4, color='tab:green')
-        ax_trace.axhline(self.fitresult_gauss.params['mu2'].value, ls='dashed', color='tab:green')
+            ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu2'] - self.n_sigma_filter * self.fitresult_gauss.params['sig2'],
+                                  self.fitresult_gauss.params['mu2'] + self.n_sigma_filter * self.fitresult_gauss.params['sig2'], alpha=0.4, color='tab:green')
+            ax_trace.axhline(self.fitresult_gauss.params['mu2'].value, ls='dashed', color='tab:green')
 
-        ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
-        ax_trace.set_xlim(-1, 401)
-        if self.fitresult_gauss.params['mu1'] < self.fitresult_gauss.params['mu2']:
-            ax_trace.set_ylim(self.fitresult_gauss.params['mu1'] - 3 * self.fitresult_gauss.params['sig1'],
-                              self.fitresult_gauss.params['mu2'] + 3 * self.fitresult_gauss.params['sig2'])
+            ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
+            ax_trace.set_xlim(-1, 401)
+
+            if self.fitresult_gauss.params['mu1'] < self.fitresult_gauss.params['mu2']:
+                ax_trace.set_ylim(self.fitresult_gauss.params['mu1'] - 3 * self.fitresult_gauss.params['sig1'],
+                                  self.fitresult_gauss.params['mu2'] + 3 * self.fitresult_gauss.params['sig2'])
+            else:
+                ax_trace.set_ylim(self.fitresult_gauss.params['mu2'] - 3 * self.fitresult_gauss.params['sig2'],
+                                  self.fitresult_gauss.params['mu1'] + 3 * self.fitresult_gauss.params['sig1'])
         else:
-            ax_trace.set_ylim(self.fitresult_gauss.params['mu2'] - 3 * self.fitresult_gauss.params['sig2'],
-                              self.fitresult_gauss.params['mu1'] + 3 * self.fitresult_gauss.params['sig1'])
+            ax_trace.fill_between(np.arange(0, 400, 1), self._filter_params[0][0] - self.n_sigma_filter *
+                                  self._filter_params[1][0], self._filter_params[0][0] + self.n_sigma_filter *
+                                  self._filter_params[1][0], alpha=0.4, color='tab:orange')
+            ax_trace.axhline(self._filter_params[0][0], ls='dashed', color='tab:orange')
+
+            ax_trace.fill_between(np.arange(0, 400, 1), self._filter_params[0][1] - self.n_sigma_filter *
+                                  self._filter_params[1][1], self._filter_params[0][1] + self.n_sigma_filter *
+                                  self._filter_params[1][1], alpha=0.4, color='tab:green')
+            ax_trace.axhline(self._filter_params[0][1], ls='dashed', color='tab:green')
+
+            ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
+            ax_trace.set_xlim(-1, 401)
+
+            ax_trace.set_ylim(self._filter_params[0][0] - 3 * self._filter_params[1][0],
+                              self._filter_params[0][1] + 3 * self._filter_params[1][1])
 
         ax_trace.set_title('rotated data trace excerpt')
         ax_trace.set_xlabel('timestep')
@@ -422,12 +440,27 @@ class QntmJumpTrace:
         ax_histy.legend()
 
         ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[0][:500], 'k.-', label='real rotated data')
-        ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[0][:500] * (np.abs(self.fitresult_gauss.params['mu1'])
-                                                                            + self.fitresult_gauss.params['mu2'])
-                                                    + self.fitresult_gauss.params['mu1']), color='red', label='state assignment')
+
+        if self._filter_params is None:
+            ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[0][:500]
+                                                        * (np.abs(self.fitresult_gauss.params['mu1']) +
+                                                           self.fitresult_gauss.params['mu2'])
+                                                        + self.fitresult_gauss.params['mu1']), color='red',
+                                 label='state assignment')
+        else:
+            ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[0][:500]
+                                                        * (np.abs(self._filter_params[0][0]) +
+                                                           self._filter_params[0][1])
+                                                        + self._filter_params[0][0]), color='red',
+                                 label='state assignment')
+
+            ax_state_assign.text(10, self._filter_params[0][1]+self._filter_params[1][1], 'Double Gauss fit overridden',
+                                 color='red')
+
         ax_state_assign.set_xlabel('timestep')
         ax_state_assign.set_ylabel('I (arb. un.)')
         ax_state_assign.legend()
+        ax_state_assign.set_ylim(ax_trace.get_ylim())
 
         return fig
 
