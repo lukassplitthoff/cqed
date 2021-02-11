@@ -305,12 +305,11 @@ class QntmJumpTrace:
                 self.dwell_l = np.concatenate((self.dwell_l, _dwell_l))
                 self.dwell_h = np.concatenate((self.dwell_h, _dwell_h))
 
-        bins_edges = np.histogram_bin_edges(self.dwell_l, bins='auto',
-                                            range=(np.min(self.dwell_l), np.max(self.dwell_l)))
+        bins_edges = np.arange(1, np.max(self.dwell_l)+2., 1.) - 0.5
+
         self.hist_dwell_l = self._create_hist(self.dwell_l, bins_edges, (np.min(self.dwell_l), np.max(self.dwell_l)))
 
-        bins_edges = np.histogram_bin_edges(self.dwell_h, bins='auto',
-                                            range=(np.min(self.dwell_h), np.max(self.dwell_h)))
+        bins_edges = np.arange(1, np.max(self.dwell_h)+2., 1.) - 0.5
         self.hist_dwell_h = self._create_hist(self.dwell_h, bins_edges, (np.min(self.dwell_h), np.max(self.dwell_h)))
 
         # since the histogram has zeros as entries, filter those before passing to curve_fit
