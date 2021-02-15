@@ -283,12 +283,12 @@ class QntmJumpTrace:
                 sg1 = self.n_sigma_filter * self.fitresult_gauss.params["sig1"].value
                 sg2 = self.n_sigma_filter * self.fitresult_gauss.params["sig2"].value
                 if self.fitresult_gauss.params["mu2"].value > self.fitresult_gauss.params["mu1"].value:
-                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
+                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.integrated_data_rot[i].real,
                                                                                   (self.fitresult_gauss.params["mu1"].value,
                                                                                    self.fitresult_gauss.params["mu2"].value),
                                                                                   (sg1, sg2))
                 else:
-                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
+                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.integrated_data_rot[i].real,
                                                                                   (self.fitresult_gauss.params["mu2"].value,
                                                                                    self.fitresult_gauss.params["mu1"].value),
                                                                                   (sg2, sg1))
@@ -298,7 +298,7 @@ class QntmJumpTrace:
             else:
                 self._filter_params = state_filter_prms
 
-                self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.raw_data_rot[i].real,
+                self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.self.integrated_data_rot[i].real,
                                                                               self._filter_params[0],
                                                                               n_sigma_filter
                                                                               * self._filter_params[1])
