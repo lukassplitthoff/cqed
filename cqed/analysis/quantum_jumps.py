@@ -298,7 +298,7 @@ class QntmJumpTrace:
             else:
                 self._filter_params = state_filter_prms
 
-                self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.self.integrated_data_rot[i].real,
+                self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.integrated_data_rot[i].real,
                                                                               self._filter_params[0],
                                                                               n_sigma_filter
                                                                               * self._filter_params[1])
