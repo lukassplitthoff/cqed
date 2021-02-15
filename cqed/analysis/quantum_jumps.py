@@ -74,7 +74,7 @@ class QntmJumpTrace:
 
         # attributes for latching filter pipeline
         self.raw_hist = []
-        self.state_vec = np.empty_like(self.raw_data)
+        self.state_vec = np.empty_like(self.integrated_data)
         self.dwell_l = []
         self.dwell_h = []
         self.hist_dwell_l = np.empty((self.dat_dims[0], 2), dtype=object)
