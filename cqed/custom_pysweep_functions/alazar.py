@@ -659,11 +659,11 @@ def setup_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True):
     print(controller, navg, acq_time, controller.demod_frq(), npoints)
 
 
-def measure_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True, hetsrc_power=None, hetsrc_freq=None, **kw):
+def measure_QPP(controller, acq_time, navg, suffix='', SR=250e6, setup_awg=True, hetsrc_power=None, hetsrc_freq=None, **kw):
 
     @MakeMeasurementFunction(
         [
-            DataParameter("timestamp", "s", "array", False),
+            DataParameter("timestamp" + str(suffix), "s", "array", False),
         ]
     )
     def return_alazar_trace(d):
@@ -687,7 +687,7 @@ def measure_QPP(controller, acq_time, navg, SR=250e6, setup_awg=True, hetsrc_pow
             station.hetsrc.frequency(hetsrc_freq)
 
         station.qubsrc.modulation_rf('OFF')
-        station.qubsrc.output_rf('ON')
+        station.qubsrc.output_rf('OFF')
         station.RF.on()
         station.RF.pulsemod_source('EXT')
         station.RF.pulsemod_state('OFF')
