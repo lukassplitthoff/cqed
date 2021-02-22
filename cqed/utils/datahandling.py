@@ -47,6 +47,12 @@ def db_to_xarray(ind, **kwargs):
 
     ds = merge([*_df])
     ds.attrs['snapshot'] = d.snapshot
+    ds.attrs['exp_name'] = d.exp_name
+    ds.attrs['captured_run_id'] = d.captured_run_id
+    ds.attrs['sample_name'] = d.sample_name
+    ds.attrs['guid'] = d.guid
+    ds.attrs['run_timestamp_raw'] = d.run_timestamp_raw
+    ds.attrs['completed_timestamp_raw'] = d.completed_timestamp_raw
 
     return ds
 
