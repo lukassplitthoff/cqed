@@ -1,3 +1,5 @@
+# Developed and written by the cQED team of the Kouwenhoven lab at QuTech 2020-2021
+
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
@@ -8,6 +10,11 @@ from lmfit import minimize, Parameters
 
 
 class QntmJumpTrace:
+    """ The purpose of this class is to analyze time traces of transitions between two states. Three different
+    techniques to extract the transition rates between the two states are available via the latching_pipeline,
+    hmm_pipeline, and psd_pipeline methods.
+    The input data is assumed to be points in a 2d plane, e.g. IQ points commonly encountered in dispersive readout.
+    """
 
     def __init__(self, data, dt, data_complex=True, theta=None, n_integration=1):
         """
@@ -17,9 +24,12 @@ class QntmJumpTrace:
         @param data: either a complex 2d-array, or a tuple of 2d arrays (real, imag). If 2d array it is assumed that it
         is less time traces than data points per trace.
         @param dt: time between two data points in seconds
-        @param data_complex: bool, default=True
-        @param theta: angle to rotate the raw input data. If not specified the data is rotated for max variance
-            in the real axis
+        @param data_complex: bool, default=True. If False data is expected to be a tuple of 2d arrays
+        @param theta: angle to rotate the raw input data in the complex plane. If not specified the data is rotated for
+        max variance in the real axis.
+        @param n_integration: Number of samples to average together to decrease noise at the expense of decreased time
+        resolution. Note that this kwarg has no influence on the PSD in the psd pipeline, as for that analysis the raw
+        input data before integration is used.
         """
 
         if data_complex:
@@ -108,6 +118,12 @@ class QntmJumpTrace:
         self.rate_lh_hmm = None
 
     def hmm_pipeline(self, n_iter=20):
+        """
+        Use the hidden markov model analysis provided by the hmmlearn python package to extract transition rates between
+        two states.
+        @param n_iter: Number of iterations for the fit routine of the hmmlearn package.
+        @return: None
+        """
 
         self.hmm_model.n_iter = n_iter
 
@@ -134,7 +150,7 @@ class QntmJumpTrace:
          @param data: array to histogram
          @param n_bins: number of bins for the histogramming
          @param rng: range passed to np.histogram
-         @return: tuple of: middle of bins, normalized occurrence"""
+         @return: tuple of: middle of bins, number of counts"""
 
         n, bins = np.histogram(data, bins=n_bins, density=False, range=rng)
         x_axis = bins[:-1] + (bins[1] - bins[0]) / 2.
@@ -143,9 +159,11 @@ class QntmJumpTrace:
 
     @staticmethod
     def _fit_dbl_gaussian(xdata, ydata, min_data=-np.inf, max_data=np.inf, start_param_guess=None):
-        """ Fit a double gaussian distribution using scipy.curve_fit.
+        """ Fit a double gaussian distribution using lmfit's minimize method.
         @param xdata: (array)
         @param ydata: (array)
+        @param min_data: lower bound for means of double exponential fit
+        @param max_data: upper bound for means of double exponential fit
         @param start_param_guess: starting parameters for the fitting algorithm, expects iterable of length 6 with
             [amplitude1, mean1, standard deviation1, amplitude2, mean2, standard deviation1], if None
             cqed.utils.fit_functions.dbl_gaussian_guess_means and gaussian_guess_sigma_A are used
@@ -231,7 +249,11 @@ class QntmJumpTrace:
     def _double_gauss_routine(self, n_bins, dbl_gauss_p0):
         """
         Histogram the real part of the rotated data all at once, i.e. flatten the input array in case it's 2d
-        then fit a double gaussian distribution
+        then fit a double gaussian distribution.
+        @param n_bins: number of bins used for the histogram
+        @param dbl_gauss_p0: start parameters for the double gaussian fit routine. Expects iterable of size 6:
+        (amplitude1, mean1, sigma1, amplitude2, mean2, sigma2)
+        @return None: just fills the attributes fitresult_gauss and SNR
         """
         self.min_data = np.min(self.integrated_data_rot.real.flatten())
         self.max_data = np.max(self.integrated_data_rot.real.flatten())
@@ -241,11 +263,10 @@ class QntmJumpTrace:
         n_bins = int(n_bins * (x_max-x_min)/(self.max_data-self.min_data))
         self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins=n_bins, range=(x_min, x_max))
 
-        # TODO: do we want these bounds? I encountered that diong this it sometimes gives errors when
+        # TODO: do we want these bounds? I encountered that doing this it sometimes gives errors when
         # trying to fit two Gaussians to data that is only one Gaussian, because it just finds mu2 very
-        # far away such that only it's tail overlaps the data and it ends up resuting on unrealistic results
+        # far away such that only it's tail overlaps the data and it ends up resulting in unrealistic results
         if dbl_gauss_p0 is not None:
-            # TODO: fix this case
             self.fitresult_gauss = self._fit_dbl_gaussian(self.raw_hist[0], self.raw_hist[1],
                                                           start_param_guess=dbl_gauss_p0, min_data=self.min_data,
                                                           max_data=self.max_data)
@@ -267,7 +288,7 @@ class QntmJumpTrace:
         @param dbl_gauss_p0: starting parameters for the double gaussian fit
         @param override_gaussfit: (bool) default False: use the fit parameters found using the internal dbl gauss fit
         route. True: use the means and sigmas provided through the state_filter_prms kwarg.
-        @param state_filter_prms: (tuple) Parameters used for the state assignment algorithm is override_gaussfit=True.
+        @param state_filter_prms: (tuple) Parameters used for the state assignment algorithm if override_gaussfit=True.
         Expects input of the form ((mean1, mean2), (standard deviation1, standard deviation2))
         @param n_sigma_filter: (float) prefactor to adjust the thresholding for the state assignment algorithm.
         @return: class instance itself
@@ -469,7 +490,10 @@ class QntmJumpTrace:
     @staticmethod
     def _calculate_PSD(ys):
         """
-        returns the PSD of a timeseries and freuency axis
+        returns the PSD of a timeseries and freuency axis.
+        @param ys: time series to analyze
+        @return fs: frequency axis
+        @return ys_fft: result of Fourier analysis
         """
         ys_fft = np.abs(np.fft.fft(ys)) ** 2
 
@@ -484,7 +508,12 @@ class QntmJumpTrace:
     def psd_pipeline(self, n_bins=100, dbl_gauss_p0=None, m_guess=0.8e-1, gamma_guess=1e-4):
         """
         Perform the analysis of time traces using a fit of double gaussian and a fit of a Lorentzian to the PSD
-        to extract transition rates
+        to extract transition rates.
+        @param n_bins: Number of bins used for the double gaussian histogram
+        @param dbl_gauss_p0: Starting parameters for the double gaussian fit of the form [amplitude1, mean1, sigma1,
+        amplitude2, mean2, sigma2]
+        @param m_guess: upper bound for the data used for fitting the lorentzian to the PSD
+        @param gamma_guess: starting parameter for the fit of the lorentzian to the PSD
         """
 
         if self.fitresult_gauss is None:
@@ -548,6 +577,11 @@ class QntmJumpTrace:
         self.fit_accuracy_psd = 1. / (self.fitresult_gauss.redchi * self.fitresult_lorentzian.redchi)
 
     def plot_psd_analysis(self, figsize=(12, 4)):
+        """ Plot the PSD analysis, i.e. the double Gaussian distribution with the fit overlaid, and the PSD with the
+        Lorentzian fit.
+        @param figsize: tuple passed to matplotlib.pyplot.subplots to adjust the size of the figure.
+        @return None
+        """
 
         fig, axes = plt.subplots(1, 2, figsize=figsize)
         axes[0].plot(self.raw_hist[0], self.raw_hist[1], 'bo')
