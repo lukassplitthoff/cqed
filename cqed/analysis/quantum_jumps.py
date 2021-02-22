@@ -4,11 +4,7 @@ import matplotlib.pyplot as plt
 from hmmlearn import hmm
 import cqed.utils.datahandling as dh
 import cqed.utils.fit_functions as fitf
-import matplotlib.mlab as mlab
 from lmfit import minimize, Parameters
-from scipy.signal import argrelextrema
-from scipy.signal import savgol_filter
-import scipy as sp
 
 
 class QntmJumpTrace:
@@ -46,7 +42,8 @@ class QntmJumpTrace:
             divisors = int(self.raw_data[0, :, ].size // n_integration)
             self.integrated_data = np.zeros((self.dat_dims[0], divisors), dtype=np.complex64)
             for ii in range(self.dat_dims[0]):
-                self.integrated_data[ii, :] = np.mean(self.raw_data[ii, 0:divisors * n_integration].reshape(-1, n_integration), axis=1)
+                self.integrated_data[ii, :] = np.mean(
+                    self.raw_data[ii, 0:divisors * n_integration].reshape(-1, n_integration), axis=1)
 
         else:
             self.integrated_data = self.raw_data
@@ -83,7 +80,7 @@ class QntmJumpTrace:
         self.rate_hl = np.zeros((self.dat_dims[0], 2), dtype=float)
         self.n_sigma_filter = 1.
         self.fitresult_gauss = None
-        self._dwellhist_guess = [-0.01, 1000.] # some hardcoded guesses for the linear fit of dwell time histogram
+        self._dwellhist_guess = [-0.01, 1000.]  # some hardcoded guesses for the linear fit of dwell time histogram
         self._filter_params = None
         self.rate_lh_err = 0
         self.rate_hl_err = 0
@@ -99,7 +96,10 @@ class QntmJumpTrace:
         self.max_data = None
         self.rate_lh_psd_err = None
         self.rate_hl_psd_err = None
-        
+        self._err_R = 0.
+        self._psd_m = 0
+        self._err_Gamma = 0.
+
         # attributes for the hidden markov pipeline
         self.hmm_model = hmm.GaussianHMM(n_components=2)
         self.state_vec_hmm = []
@@ -117,23 +117,26 @@ class QntmJumpTrace:
         self.hmm_model.fit(flattened_input, lengths=seq_len)
         # self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape(self.dat_dims)
 
-        a = np.linalg.eig(np.array(self.hmm_model.transmat_)) #calculate the eigenvalues
-        tau = -self.dt/np.log(np.abs(np.min(a[0]))) #calculate some characteristic 1/rate TODO: check if this is correct!
-        stat = self.hmm_model.get_stationary_distribution() #get the stationary distribution to calculate two times from one
+        # calculate the eigenvalues
+        a = np.linalg.eig(np.array(self.hmm_model.transmat_))
+        # calculate some characteristic 1/rate TODO: check if this is correct!
+        tau = -self.dt/np.log(np.abs(np.min(a[0])))
+        # get the stationary distribution to calculate two times from one
+        stat = self.hmm_model.get_stationary_distribution()
 
         self.rate_hl_hmm = stat[1]/(stat[1]+stat[0]) / tau
         self.rate_lh_hmm = stat[0]/(stat[0]+stat[1]) / tau
 
     @staticmethod
-    def _create_hist(data, n_bins, range):
+    def _create_hist(data, n_bins, rng):
         """Calculate a histogram and return an x-axis that is of same length. The numbers of the x-axis represent
          the middle of the corresponding bins
          @param data: array to histogram
          @param n_bins: number of bins for the histogramming
-         @param range: range passed to np.histogram
+         @param rng: range passed to np.histogram
          @return: tuple of: middle of bins, normalized occurrence"""
 
-        n, bins = np.histogram(data, bins=n_bins, density=False, range=range)
+        n, bins = np.histogram(data, bins=n_bins, density=False, range=rng)
         x_axis = bins[:-1] + (bins[1] - bins[0]) / 2.
 
         return x_axis, n
@@ -156,8 +159,7 @@ class QntmJumpTrace:
             params.add('c1', value=c, min=0.0, max=5*c)
             params.add('c2', value=c, min=0.0, max=5*c)
             params.add('mu1', value=mu1, min=min_data, max=max_data)
-            # params.add('delta', value=mu2-mu1, min=0.0)
-            params.add('mu2', value=mu2, min=min_data, max=max_data) #expr='mu1+delta'
+            params.add('mu2', value=mu2, min=min_data, max=max_data)
             params.add('sig1', value=sig, min=0.05*sig, max=20*sig)
             params.add('sig2', value=sig, min=0.05*sig, max=20*sig)
         else:
@@ -176,7 +178,7 @@ class QntmJumpTrace:
         # if fit[4] < fit[1]:
         #     fit = np.array([*fit[3:], *fit[:3]])
 
-        return out #fit, conv
+        return out  # fit, conv
 
     @staticmethod
     def _latching_filter(arr, means, sigm):
@@ -239,8 +241,7 @@ class QntmJumpTrace:
         n_bins = int(n_bins * (x_max-x_min)/(self.max_data-self.min_data))
         self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins=n_bins, range=(x_min, x_max))
 
-
-        # TODO: do we want these bounds? I encountered that diong this it sometimes gives errors when 
+        # TODO: do we want these bounds? I encountered that diong this it sometimes gives errors when
         # trying to fit two Gaussians to data that is only one Gaussian, because it just finds mu2 very
         # far away such that only it's tail overlaps the data and it ends up resuting on unrealistic results
         if dbl_gauss_p0 is not None:
@@ -253,7 +254,6 @@ class QntmJumpTrace:
                                                           max_data=self.max_data)
             average_sigma = 0.5 * (self.fitresult_gauss.params["sig1"] + self.fitresult_gauss.params["sig2"])
             self.SNR = np.abs((self.fitresult_gauss.params["mu2"] - self.fitresult_gauss.params["mu1"]) / average_sigma)
-        
 
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
@@ -383,8 +383,6 @@ class QntmJumpTrace:
                 ax_dwell_hist.plot(self.hist_dwell_h[0], fitf.exp_func(self.hist_dwell_h[0], -self.rate_hl[0],
                                                                         np.exp(self.rate_hl[1])), 'k')
 
-            # ax_dwell_hist.set_xlim(1, np.max([np.max(self.hist_dwell_l[0][0]), np.max(self.hist_dwell_h[0][0])]))
-
         ax_dwell_hist.set_yscale('log')
         ax_dwell_hist.set_title('histogram of dwell times')
         ax_dwell_hist.set_ylabel('norm. occurence')
@@ -392,12 +390,16 @@ class QntmJumpTrace:
         ax_dwell_hist.legend()
 
         if self._filter_params is None:
-            ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu1'] - self.n_sigma_filter * self.fitresult_gauss.params['sig1'],
-                                  self.fitresult_gauss.params['mu1'] + self.n_sigma_filter * self.fitresult_gauss.params['sig1'], alpha=0.4, color='tab:orange')
+            ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu1'] - self.n_sigma_filter
+                                  * self.fitresult_gauss.params['sig1'],
+                                  self.fitresult_gauss.params['mu1'] + self.n_sigma_filter
+                                  * self.fitresult_gauss.params['sig1'], alpha=0.4, color='tab:orange')
             ax_trace.axhline(self.fitresult_gauss.params['mu1'].value, ls='dashed', color='tab:orange')
 
-            ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu2'] - self.n_sigma_filter * self.fitresult_gauss.params['sig2'],
-                                  self.fitresult_gauss.params['mu2'] + self.n_sigma_filter * self.fitresult_gauss.params['sig2'], alpha=0.4, color='tab:green')
+            ax_trace.fill_between(np.arange(0, 400, 1), self.fitresult_gauss.params['mu2'] - self.n_sigma_filter
+                                  * self.fitresult_gauss.params['sig2'],
+                                  self.fitresult_gauss.params['mu2'] + self.n_sigma_filter
+                                  * self.fitresult_gauss.params['sig2'], alpha=0.4, color='tab:green')
             ax_trace.axhline(self.fitresult_gauss.params['mu2'].value, ls='dashed', color='tab:green')
 
             ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
@@ -431,7 +433,8 @@ class QntmJumpTrace:
         ax_trace.set_ylabel('I (arb. un.)')
         ax_histy.barh(self.raw_hist[0], self.raw_hist[1], (self.raw_hist[0][1] - self.raw_hist[0][0]) * 0.8,
                       label='rot. data')
-        ax_histy.plot(fitf.dbl_gaussian(self.raw_hist[0], self.fitresult_gauss.params), self.raw_hist[0], 'k', label='fit')
+        ax_histy.plot(fitf.dbl_gaussian(self.raw_hist[0], self.fitresult_gauss.params), self.raw_hist[0],
+                      'k', label='fit')
         ax_histy.tick_params(direction='in', labelleft=False)
         ax_histy.set_ylim(ax_trace.get_ylim())
         ax_histy.set_xlabel('norm. occurence')
@@ -465,9 +468,9 @@ class QntmJumpTrace:
 
     @staticmethod
     def _calculate_PSD(ys):
-        '''
+        """
         returns the PSD of a timeseries and freuency axis
-        '''
+        """
         ys_fft = np.abs(np.fft.fft(ys)) ** 2
 
         fmax = 1.
@@ -482,8 +485,6 @@ class QntmJumpTrace:
         """
         Perform the analysis of time traces using a fit of double gaussian and a fit of a Lorentzian to the PSD
         to extract transition rates
-        @param n_integration: (int) how many consecutive datapoints of the raw input data shall be averaged for the
-        histogram to extract the double gaussians
         """
 
         if self.fitresult_gauss is None:
@@ -492,8 +493,9 @@ class QntmJumpTrace:
         # calculating the error of R based on the fit uncertainties of c1, c2
         R = self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value
         self._err_R = np.sqrt((-self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value**2
-                               * self.fitresult_gauss.params["c1"].stderr)**2 + (1. / self.fitresult_gauss.params["c1"].value
-                                                                          * self.fitresult_gauss.params["c2"].stderr)**2
+                               * self.fitresult_gauss.params["c1"].stderr)**2
+                              + (1. / self.fitresult_gauss.params["c1"].value
+                                 * self.fitresult_gauss.params["c2"].stderr)**2
                               )
 
         # Calculating and plotting PSD
@@ -503,10 +505,10 @@ class QntmJumpTrace:
         self.fs = fs
 
         # Plotting initial guess for the fit
-        m = np.argmin(np.abs(fs - m_guess))  #TODO: This is semi-hard coded
+        m = np.argmin(np.abs(fs - m_guess))  # TODO: This is semi-hard coded
         xdat = np.real(self.fs[1:m])
         ydat = self.ys_fft[1:m]
-        self._psd_m = m #save it just for plotting later
+        self._psd_m = m  # save it just for plotting later
 
         # Fitting Lorentzian
         params = Parameters()
@@ -545,9 +547,6 @@ class QntmJumpTrace:
         # Calculate measure of fit accuracy
         self.fit_accuracy_psd = 1. / (self.fitresult_gauss.redchi * self.fitresult_lorentzian.redchi)
 
-        # Calculate errors for Gamma1, Gamma2
-
-
     def plot_psd_analysis(self, figsize=(12, 4)):
 
         fig, axes = plt.subplots(1, 2, figsize=figsize)
@@ -555,7 +554,7 @@ class QntmJumpTrace:
         axes[0].plot(self.raw_hist[0], fitf.dbl_gaussian(self.raw_hist[0], self.fitresult_gauss.params), 'r')
         axes[0].axvline(self.fitresult_gauss.params["mu1"].value, color='r')
         axes[0].axvline(self.fitresult_gauss.params["mu2"].value, color='r')
-        if self.min_data!=None and self.max_data!=None:
+        if (self.min_data is not None) and (self.max_data is not None):
             axes[0].set_xlim([self.min_data, self.max_data])
         axes[0].set_xlabel('I (arb. un.)')
         axes[0].set_ylabel('Counts')
@@ -570,268 +569,3 @@ class QntmJumpTrace:
         axes[1].set_xlabel('Frequency (Hz)')
         axes[1].set_xscale('log')
         axes[1].legend()
-
-
-def calculate_PSD(ys):
-    '''
-    returns the PSD of a timeseries and freuency axis
-    '''
-    ys_fft = np.abs(np.fft.fft(ys))**2
-
-    fmax = 1.
-    df = 1. / len(ys)
-    pts_fft = int(len(ys) / 2)
-    fs1 = np.linspace(0, fmax / 2.-df, pts_fft)
-    fs2 = np.linspace(fmax / 2., df, pts_fft)
-    fs = np.append(fs1, -fs2)
-    return fs, ys_fft
-
-
-def calculate_PSDs(ys_array):
-    '''
-    returns the averaged PSD of an array of timeseries with freuency axis
-    '''
-    shp = ys_array.shape
-    ys_fft = 0.*ys_array[0,:].real
-    for ys in ys_array:
-
-        fs, ys_fft_i = calculate_PSD(ys)
-        ys_fft += ys_fft_i/shp[0]
-    return fs, ys_fft
-
-
-def guess_x1_x2(xdat, ydat, plot=False):
-    '''
-    Calculates initial guess for x1 and x2 for a double Gaussian fit.
-    After smoothing the data, it first finds a local minimum to split the data
-    in two halfs, with a peak in each half. It then finds the maximum at each
-    side if the local minimum to estimate x1 and x2, the centers of the two
-    Gaussian peaks. If there is no central local minimum, it finds the maximum
-    of the data and returns it as the guess for both peaks.
-    '''
-
-    M = np.max(ydat)
-    m = len(ydat)
-    m1 = 0
-    while ydat[m1]<0.2*M:
-        m1+=1
-    m2 = m-1
-    while ydat[m2]<0.2*M:
-        m2-=1
-
-    n = 2*int(0.1*(m2-m1))+1
-    if n>3:
-        y_smoothed = savgol_filter(ydat, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-    else:
-        y_smoothed = ydat
-    ii = np.array(argrelextrema(y_smoothed, np.less)) + m1
-    indices = []
-    for i in ii[0]:
-        if i > 0 and i < m-1:
-            indices.append(i)
-    if len(indices)==0:
-        # If there is no central minimum
-        ix1 = np.argmax(ydat)
-        ix2 = ix1
-    elif len(indices)==1:
-        # If there is just one local minimum (ideal case)
-        i = indices[0]
-        ix1 = np.argmax(ydat[0:i])
-        ix2 = i + np.argmax(ydat[i:m-1])
-    else:
-        # If it found more than one local minimum
-        i = np.min(indices)
-        print(i)
-        ix1 = np.argmax(ydat[0:i])
-        ix2 = i + np.argmax(ydat[i:m-1])
-
-    if plot:
-        plt.figure(figsize=(16,10))
-        plt.plot(xdat, ydat, lw=1, c='k')
-        plt.plot(xdat[m1:m2], y_smoothed, lw=5, c='r')
-        plt.plot(xdat[ii], ydat[ii], 'o', c='k', ms=13)
-        plt.vlines([xdat[ix1], xdat[ix2]], 0, np.max(ydat), color='k', lw=5)
-        plt.xlim([-0.006, 0.006])
-        plt.show()
-    return xdat[ix1], xdat[ix2]
-
-
-def guess_sigma_A(xdat, ydat, plot=False):
-    '''
-    Calculates some probably non ideal initial guess for
-    sigma and A for a double Gaussian fit.
-    '''
-
-    M = np.max(ydat)
-    m = len(ydat)
-    m1 = 0
-    while ydat[m1]<0.2*M:
-        m1+=1
-    m2 = m-1
-    while ydat[m2]<0.2*M:
-        m2-=1
-
-    sigma_guess = 0.15*(xdat[m2]-xdat[m1])
-    n = 2*int(0.1*(m2-m1))+1
-    if n>3:
-        y_smoothed = savgol_filter(ydat, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-        y_smoothed = savgol_filter(y_smoothed, n, 3)
-    else:
-        y_smoothed = ydat
-    y_max = ydat[np.argmax(ydat)]
-    A_guess = 0.5 * y_max * np.sqrt(2*np.pi*sigma_guess**2)
-
-    if plot:
-        plt.figure(figsize=(16,10))
-        plt.plot(xdat, ydat, lw=1, c='k')
-        params = Parameters()
-        params.add('A1', value=A_guess)
-        params.add('A2', value=A_guess)
-        params.add('x1', value=0,)
-        params.add('x2', value=0)
-        params.add('sigma1', value=sigma_guess)
-        params.add('sigma2', value=sigma_guess)
-        plt.plot(xdat, double_Gaussian(xdat, params), 'k--')
-        plt.xlim([-0.006, 0.006])
-        plt.show()
-    return sigma_guess, A_guess
-
-
-def double_Gaussian(x, params):
-    '''
-    Double Gaussian function.
-    '''
-    A1 = params["A1"]
-    A2 = params["A2"]
-    x1 = params["x1"]
-    x2 = params["x2"]
-    sigma1 = params["sigma1"]
-    sigma2 = params["sigma2"]
-
-    gaussian_1 = A1 * np.exp(-(x-x1)**2/(2*sigma1**2)) / np.sqrt(2*np.pi*sigma1**2)
-    gaussian_2 = A2 * np.exp(-(x-x2)**2/(2*sigma2**2)) / np.sqrt(2*np.pi*sigma2**2)
-    return gaussian_1 + gaussian_2
-
-
-def QPP_Lorentzian(f, params):
-    '''
-    Lorentzian function.
-    '''
-    Gamma = params["Gamma"]
-    a = params["a"]
-    b = params["b"]
-
-    return a * (4*Gamma / ((2*Gamma)**2+(2*np.pi*f)**2)) + b
-
-
-def residual(params, x, y, function):
-    y_model = function(x, params)
-    return y_model - y
-
-
-def qj_times_v1(data, bins_n, n_integration=1, plot=True):
-
-    if plot:
-        plt.figure(figsize = (12, 4))
-
-    # Integrating data
-    navg = data.shape[0]
-    divisors = int(data[0,:,].size//n_integration)
-    integrated_data = np.zeros((navg, divisors), dtype=np.complex64)
-    for ii in range(navg):
-        integrated_data[ii,:] = np.mean(data[ii,0:divisors*n_integration].reshape(-1, n_integration), axis=1)
-    integrated_data = integrated_data.reshape(-1)
-
-    # Rotating integrated data
-    theta = dh.max_variance_angle(integrated_data)
-    rotated_integrated_data = dh.rotate_data(integrated_data, theta)
-
-    # Plotting histogram
-    n_points = rotated_integrated_data.shape[0]
-    # bins_n = int(n_points/180.)
-    min_data = np.min(np.real(rotated_integrated_data))
-    max_data = np.max(np.real(rotated_integrated_data))
-    range_data = max_data - min_data
-    x_max = max_data + 10*range_data
-    x_min = min_data - 10*range_data
-    bins_n = int(bins_n * (x_max-x_min)/(max_data-min_data))
-    ns, bins = np.histogram(np.real(rotated_integrated_data), bins=bins_n, range=(x_min, x_max))
-    xdat = np.zeros(ns.shape)
-    ydat = ns
-    for i in range(len(bins)-1):
-        xdat[i] = 0.5*(bins[i+1]+bins[i])
-    if plot:
-        plt.subplot(121)
-        plt.plot(xdat, ydat, 'bo')
-
-
-    # Fitting two Gaussians
-    ydat = ns
-    xdat = np.zeros(ns.shape)
-    for i in range(len(bins)-1):
-        xdat[i]=0.5*(bins[i+1]+bins[i])
-    x1_guess, x2_guess = guess_x1_x2(xdat, ydat, False)
-    sigma_guess, A_guess = guess_sigma_A(xdat, ydat, False)
-    params = Parameters()
-    params.add('A1', value=A_guess, min=0.0, max=5*A_guess)
-    params.add('A2', value=A_guess, min=0.0, max=5*A_guess)
-    params.add('x1', value=x1_guess, min=min_data, max=max_data)
-    params.add('x2', value=x2_guess, min=min_data, max=max_data)
-    params.add('sigma1', value=sigma_guess, min=0.05*sigma_guess, max=20*sigma_guess)
-    params.add('sigma2', value=sigma_guess, min=0.05*sigma_guess, max=20*sigma_guess)
-    out = minimize(residual, params, args=(xdat, ydat, double_Gaussian))
-    R = out.params["A2"].value / out.params["A1"].value
-    fit_x1 = out.params["x1"].value
-    fit_x2 = out.params["x2"].value
-    if plot:
-        plt.plot(xdat, double_Gaussian(xdat, out.params), 'r-', lw=2, label='fit')
-        plt.vlines([fit_x1, fit_x2], ymin=0, ymax=np.max(ydat), colors='r')
-        plt.plot(xdat, double_Gaussian(xdat, params), 'k:', label='guess')
-        plt.xlim([min_data, max_data])
-        plt.xlabel("I (a.u.)")
-        plt.ylabel("Counts")
-
-    # Calculating and plotting PSD
-    fs, PSDs = calculate_PSDs(data)
-
-    # Plotting initial guess for the fit
-    m = np.argmin(np.abs(fs-0.8e-1)) # This is hard coded, we should change this but I'm not sure by what
-    xdat = np.real(fs[1:m])
-    ydat = PSDs[1:m]
-    if plot:
-        plt.subplot(122)
-        plt.plot(xdat, ydat, 'b-', label='data')
-
-    # Fitting Lorentzian
-    Gamma_guess = 1e-4  # This is still hard coded, in general it works but we should change it
-    params = Parameters()
-    params.add('Gamma', value=Gamma_guess)
-    params.add('a', value=Gamma_guess*np.mean(ydat[0:9]))
-    params.add('b', value=np.mean(ydat[-10:-1]))
-    out = minimize(residual, params, args=(xdat, ydat, QPP_Lorentzian))
-    Gamma = out.params["Gamma"].value
-
-
-    if plot:
-        plt.plot(xdat, QPP_Lorentzian(xdat, out.params), 'r-', label='fit')
-        plt.yscale('log')
-        plt.xlabel('Frequency (Hz)')
-        plt.xscale('log')
-        plt.legend()
-        plt.show()
-
-    Gamma1 = 2*Gamma/(1+R)
-    Gamma2 = 2*R*Gamma/(1+R)
-
-    if fit_x1 > fit_x2:
-        return 1/Gamma2, 1/Gamma1
-
-    else:
-        return 1/Gamma1, 1/Gamma2
