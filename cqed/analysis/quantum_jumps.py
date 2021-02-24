@@ -41,7 +41,7 @@ class QntmJumpTrace:
         self.dat_dims = self.raw_data.shape
         if len(self.dat_dims) < 2:
             self.raw_data = np.expand_dims(self.raw_data, axis=0)
-            self.dat_dims = (1, self.dat_dims)
+            self.dat_dims = (1, self.dat_dims[0])
         else:
             if self.dat_dims[0] > self.dat_dims[1]:
                 self.raw_data = self.raw_data.T
@@ -274,7 +274,7 @@ class QntmJumpTrace:
         x_max = self.max_data + 10*range_data
         x_min = self.min_data - 10*range_data
         n_bins = int(n_bins * (x_max-x_min)/(self.max_data-self.min_data))
-        self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins=n_bins, range=(x_min, x_max))
+        self.raw_hist = self._create_hist(self.integrated_data_rot.real.flatten(), n_bins=n_bins, rng=(x_min, x_max))
 
         # TODO: do we want these bounds? I encountered that doing this it sometimes gives errors when
         # trying to fit two Gaussians to data that is only one Gaussian, because it just finds mu2 very
