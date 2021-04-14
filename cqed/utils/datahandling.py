@@ -41,7 +41,7 @@ def db_to_xarray(ind, **kwargs):
     d = load_by_run_spec(captured_run_id=ind, **kwargs)
     _df = []
     for obj in d.dependent_parameters:
-        _df += [d.get_data_as_pandas_dataframe()[obj.name].to_xarray()]
+        _df += [d.to_pandas_dataframe_dict()[obj.name].to_xarray()]
 
     ds = merge([*_df])
     ds.attrs['snapshot'] = d.snapshot
