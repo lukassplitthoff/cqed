@@ -2,6 +2,8 @@ from pathlib import Path
 from qcodes import initialise_or_create_database_at, config, load_by_run_spec
 from xarray import merge
 
+import warnings
+
 
 def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_dir='D:/Data'):
     """    
@@ -26,6 +28,7 @@ def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_
 
 
 def db_to_xarray(ind, **kwargs):
+
     """
     Take a dataset from a qcodes database identified by its ID and transform it into a xarray.Dataset
     Wraps around the function load_by_run_spec, which allows to get data from different databases, if you supply
@@ -37,6 +40,11 @@ def db_to_xarray(ind, **kwargs):
     @return: xarray.Dataset with the independent parameters as coordinates,
      and the dependent parameters as Data variables
     """
+
+    warnings.warn("The function <db_to_xarray> is deprecated, because this method will be removed due to "
+                  "duplication with a existing build-in function from qcodes. "
+                  "Please use 'load_by_run_spec(captured_run_id=ind, **kwarg)' and 'to_xarray_dataset()' instead.",
+                  category=DeprecationWarning, stacklevel=2)
 
     d = load_by_run_spec(captured_run_id=ind, **kwargs)
     _df = []
