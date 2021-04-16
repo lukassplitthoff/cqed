@@ -41,23 +41,6 @@ def db_to_xarray(ind, **kwargs):
      and the dependent parameters as Data variables
     """
 
-    warnings.warn("The function <db_to_xarray> is deprecated, because this method will be removed due to "
-                  "duplication with a existing build-in function from qcodes. "
-                  "Please use 'load_by_run_spec(captured_run_id=ind, **kwarg)' and 'to_xarray_dataset()' instead.",
-                  category=DeprecationWarning, stacklevel=2)
-
     d = load_by_run_spec(captured_run_id=ind, **kwargs)
-    _df = []
-    for obj in d.dependent_parameters:
-        _df += [d.to_pandas_dataframe_dict()[obj.name].to_xarray()]
-
-    ds = merge([*_df])
-    ds.attrs['snapshot'] = d.snapshot
-    ds.attrs['exp_name'] = d.exp_name
-    ds.attrs['captured_run_id'] = d.captured_run_id
-    ds.attrs['sample_name'] = d.sample_name
-    ds.attrs['guid'] = d.guid
-    ds.attrs['run_timestamp_raw'] = d.run_timestamp_raw
-    ds.attrs['completed_timestamp_raw'] = d.completed_timestamp_raw
-
+    ds = d.to_xarray_dataset()
     return ds
