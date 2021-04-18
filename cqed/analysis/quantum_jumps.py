@@ -1,7 +1,6 @@
 # Developed and written by the cQED team of the Kouwenhoven lab at QuTech 2020-2021
 
 import numpy as np
-from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
 import cqed.utils.datahandling as dh
@@ -27,9 +26,9 @@ class QntmJumpTrace:
         @param data_complex: bool, default=True. If False data is expected to be a tuple of 2d arrays
         @param theta: angle to rotate the raw input data in the complex plane. If not specified the data is rotated for
         max variance in the real axis.
-        @param n_integration: Number of samples to average together to decrease noise at the expense of decreased time
-        resolution. Note that this kwarg has no influence on the PSD in the psd pipeline, as for that analysis the raw
-        input data before integration is used.
+        @param n_integration (int): Number of samples to average together to decrease noise at the expense of decreased
+        time resolution. Note that this kwarg has no influence on the PSD in the psd pipeline, as for that analysis
+        the raw input data before integration is used.
         """
 
         if data_complex:
@@ -53,13 +52,13 @@ class QntmJumpTrace:
             self.integrated_data = np.zeros((self.dat_dims[0], divisors), dtype=np.complex64)
             for ii in range(self.dat_dims[0]):
                 self.integrated_data[ii, :] = np.mean(
-                    self.raw_data[ii, 0:divisors * n_integration].reshape(-1, n_integration), axis=1)
+                    self.raw_data[ii, 0: int(divisors * n_integration)].reshape(-1, int(n_integration)), axis=1)
 
         else:
             self.integrated_data = self.raw_data
 
         self.dt = float(dt * n_integration)
-        self.n_integration = n_integration
+        self.n_integration = float(n_integration)
 
         # rotate the data for max variance in the real axis
         if theta is None:
@@ -77,20 +76,21 @@ class QntmJumpTrace:
             self.raw_data_rot[i] = dh.rotate_data(self.raw_data[i], self.theta)
             self.integrated_data_rot[i] = dh.rotate_data(self.integrated_data[i], self.theta)
 
+        self.raw_hist = []
+        self.fitresult_gauss = None
         self.SNR = None
 
         # attributes for latching filter pipeline
-        self.raw_hist = []
         self.state_vec = np.empty_like(self.integrated_data)
         self.dwell_l = []
         self.dwell_h = []
         self.hist_dwell_l = np.empty((self.dat_dims[0], 2), dtype=object)
         self.hist_dwell_h = np.empty((self.dat_dims[0], 2), dtype=object)
-        self.rate_lh = np.zeros((self.dat_dims[0], 2), dtype=float)
-        self.rate_hl = np.zeros((self.dat_dims[0], 2), dtype=float)
+        self.rate_lh = 0
+        self.rate_hl = 0
         self.n_sigma_filter = 1.
-        self.fitresult_gauss = None
-        self._dwellhist_guess = [-0.01, 1000.]  # some hardcoded guesses for the linear fit of dwell time histogram
+        self._hl_fit = None
+        self._lh_fit = None
         self._filter_params = None
         self.rate_lh_err = 0
         self.rate_hl_err = 0
@@ -106,13 +106,13 @@ class QntmJumpTrace:
         self.max_data = None
         self.rate_lh_psd_err = None
         self.rate_hl_psd_err = None
-        self._err_R = 0.
+        self._err_r = 0.
         self._psd_m = 0
         self._err_Gamma = 0.
 
         # attributes for the hidden markov pipeline
         self.hmm_model = hmm.GaussianHMM(n_components=2)
-        self.state_vec_hmm = []
+        self.state_vec_hmm = np.empty_like(self.integrated_data)
         self.rate_hl_hmm = None
         self.rate_lh_hmm = None
 
@@ -121,12 +121,14 @@ class QntmJumpTrace:
         Use the hidden markov model analysis provided by the hmmlearn python package to extract transition rates between
         two states.
         @param n_iter: Number of iterations for the fit routine of the hmmlearn package. Default is 100.
+        @param n_bins: unused parameter should be removed
+        @param dbl_gauss_p0: start parameters for double gaussian fit
         @return: None
         """
       
         self.hmm_model.n_iter = n_iter
         self.hmm_model.init_params = "t"  # tell the model which parameters are not initialized
-        self.hmm_model.params="cmts"  # allow model to update all parameters
+        self.hmm_model.params = "cmts"  # allow model to update all parameters
         
         flattened_input = self.integrated_data_rot.real.reshape(-1, 1)
         seq_len = (np.ones(self.dat_dims[0], dtype=int) * self.dat_dims[1] / self.n_integration).astype(int)
@@ -136,19 +138,23 @@ class QntmJumpTrace:
         
         # estimate the model parameters to improve convergence
         # the relative height of the peaks gives us an idea of the start probability
-        self.hmm_model.startprob_ = np.array([self.fitresult_gauss.params["c1"],self.fitresult_gauss.params["c2"]]) \
+        self.hmm_model.startprob_ = np.array([self.fitresult_gauss.params["c1"], self.fitresult_gauss.params["c2"]]) \
                                     / (self.fitresult_gauss.params["c1"] + self.fitresult_gauss.params["c2"])
 
         self.hmm_model.means_ = np.array([[self.fitresult_gauss.params["mu1"]], [self.fitresult_gauss.params["mu2"]]])
         self.hmm_model.covars_ = np.sqrt(np.array([[self.fitresult_gauss.params["sig1"]],
                                                    [self.fitresult_gauss.params["sig2"]]]))
-        
+
+        # ToDo: according to the hmmlearn doc one should implement different starting paramters for the fit
+        # still to be implemented
         self.hmm_model.fit(flattened_input, lengths=seq_len)
-        self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape(self.dat_dims)
+        self.state_vec_hmm = self.hmm_model.predict(flattened_input, lengths=seq_len).reshape((self.dat_dims[0],
+                                                                                               int(self.dat_dims[1]
+                                                                                               / self.n_integration)))
 
         # calculate the eigenvalues
         a = np.linalg.eig(np.array(self.hmm_model.transmat_))
-        # calculate some characteristic 1/rate TODO: check if this is correct!
+        # calculate some characteristic 1/rate
         tau = -self.dt/np.log(np.abs(np.min(a[0])))
         # get the stationary distribution to calculate two times from one
         stat = self.hmm_model.get_stationary_distribution()
@@ -289,6 +295,18 @@ class QntmJumpTrace:
             average_sigma = 0.5 * (self.fitresult_gauss.params["sig1"] + self.fitresult_gauss.params["sig2"])
             self.SNR = np.abs((self.fitresult_gauss.params["mu2"] - self.fitresult_gauss.params["mu1"]) / average_sigma)
 
+    @staticmethod
+    def _rate_fitf(p, x, data=None):
+        a = p['A']
+        g = p['g']
+
+        model = fitf.exp_func(x, g, a)
+
+        if data is None:
+            return model
+        else:
+            return model - data
+
     def latching_pipeline(self, n_bins=100, dbl_gauss_p0=None, override_gaussfit=False, state_filter_prms=None,
                           n_sigma_filter=1.):
         """
@@ -317,15 +335,15 @@ class QntmJumpTrace:
                 sg1 = self.n_sigma_filter * self.fitresult_gauss.params["sig1"].value
                 sg2 = self.n_sigma_filter * self.fitresult_gauss.params["sig2"].value
                 if self.fitresult_gauss.params["mu2"].value > self.fitresult_gauss.params["mu1"].value:
-                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.integrated_data_rot[i].real,
-                                                                                  (self.fitresult_gauss.params["mu1"].value,
-                                                                                   self.fitresult_gauss.params["mu2"].value),
-                                                                                  (sg1, sg2))
+                    self.state_vec[i], _dwell_l, _dwell_h = \
+                        self._latching_filter(self.integrated_data_rot[i].real,
+                                              (self.fitresult_gauss.params["mu1"].value,
+                                               self.fitresult_gauss.params["mu2"].value), (sg1, sg2))
                 else:
-                    self.state_vec[i], _dwell_l, _dwell_h = self._latching_filter(self.integrated_data_rot[i].real,
-                                                                                  (self.fitresult_gauss.params["mu2"].value,
-                                                                                   self.fitresult_gauss.params["mu1"].value),
-                                                                                  (sg2, sg1))
+                    self.state_vec[i], _dwell_l, _dwell_h = \
+                        self._latching_filter(self.integrated_data_rot[i].real,
+                                              (self.fitresult_gauss.params["mu2"].value,
+                                               self.fitresult_gauss.params["mu1"].value), (sg2, sg1))
                 self.dwell_l = np.concatenate((self.dwell_l, _dwell_l))
                 self.dwell_h = np.concatenate((self.dwell_h, _dwell_h))
 
@@ -346,27 +364,21 @@ class QntmJumpTrace:
         bins_edges = np.arange(1, np.max(self.dwell_h)+2., 1.) - 0.5
         self.hist_dwell_h = self._create_hist(self.dwell_h, bins_edges, (np.min(self.dwell_h), np.max(self.dwell_h)))
 
-        # since the histogram has zeros as entries, filter those before passing to curve_fit
-        log_yl = np.log(self.hist_dwell_l[1])
-        inds = np.where(np.isfinite(log_yl))[0]
-        x_l = self.hist_dwell_l[0][inds]
+        # Fitting an actual exponential distribution rather than a linear function to the log values, because
+        # that gives disproportionate weight to data at larger x! Cf. https://doi.org/10.1175/JAM2271.1
+        p_lh = Parameters()
+        p_lh.add(name='A', value=100, min=0, max=np.inf, vary=True)
+        p_lh.add(name='g', value=-1./np.mean(self.dwell_l), min=-np.inf, max=0, vary=True)
+        self._lh_fit = minimize(QntmJumpTrace._rate_fitf, p_lh, args=(self.hist_dwell_l[0], self.hist_dwell_l[1]))
+        self.rate_lh = - self._lh_fit.params['g'].value / self.dt
+        self.rate_lh_err = self._lh_fit.params['g'].stderr / self.dt
 
-        self.rate_lh, conv = curve_fit(fitf.lin_func, x_l, log_yl[inds], p0=[self._dwellhist_guess[0],
-                                                                             self._dwellhist_guess[1]])
-        self.rate_lh_err = np.sqrt(np.diag(conv)) / self.dt
-
-        # since the histogram has zeros as entries, filter those before passing to curve_fit
-        log_yh = np.log(self.hist_dwell_h[1])
-        inds = np.where(np.isfinite(log_yh))[0]
-        x_h = self.hist_dwell_h[0][inds]
-
-        self.rate_hl, conv = curve_fit(fitf.lin_func, x_h, log_yh[inds], p0=[self._dwellhist_guess[0],
-                                                                             self._dwellhist_guess[1]])
-        self.rate_hl_err = np.sqrt(np.diag(conv)) / self.dt
-
-        # rescale the rates to units of Hz
-        self.rate_lh[0] = np.abs(self.rate_lh[0] / self.dt)
-        self.rate_hl[0] = np.abs(self.rate_hl[0] / self.dt)
+        p_hl = Parameters()
+        p_hl.add(name='A', value=100, min=0, max=np.inf, vary=True)
+        p_hl.add(name='g', value=-1./np.mean(self.dwell_h), min=-np.inf, max=0, vary=True)
+        self._hl_fit = minimize(QntmJumpTrace._rate_fitf, p_hl, args=(self.hist_dwell_h[0], self.hist_dwell_h[1]))
+        self.rate_hl = - self._hl_fit.params['g'].value / self.dt
+        self.rate_hl_err = self._hl_fit.params['g'].stderr / self.dt
 
         return self
 
@@ -393,13 +405,13 @@ class QntmJumpTrace:
         ax_histy = fig.add_axes(dim_ax_histy)
         ax_state_assign = fig.add_axes(dim_ax_state_assign)
 
-        ax_raw.hist2d(self.raw_data[0].real, self.raw_data[0].imag, bins=50)
+        ax_raw.hist2d(self.integrated_data[0].real, self.integrated_data[0].imag, bins=50)
         ax_raw.axis('equal')
         ax_raw.set_title('raw data')
         ax_raw.set_xlabel('I (arb. un.)')
         ax_raw.set_ylabel('Q (arb. un.)')
 
-        ax_rot.hist2d(self.raw_data_rot[0].real, self.raw_data_rot[0].imag, bins=50)
+        ax_rot.hist2d(self.integrated_data_rot[0].real, self.integrated_data_rot[0].imag, bins=50)
         ax_rot.axis('equal')
         ax_rot.set_title('rotated data')
         ax_rot.set_xlabel('I (arb. un.)')
@@ -412,10 +424,10 @@ class QntmJumpTrace:
             ax_dwell_hist.plot(self.hist_dwell_h[0], self.hist_dwell_h[1], 'o', mfc='none', label='higher state')
 
             if self.rate_lh is not None:
-                ax_dwell_hist.plot(self.hist_dwell_l[0], fitf.exp_func(self.hist_dwell_l[0], -self.rate_lh[0],
-                                                                        np.exp(self.rate_lh[1])), 'k')
-                ax_dwell_hist.plot(self.hist_dwell_h[0], fitf.exp_func(self.hist_dwell_h[0], -self.rate_hl[0],
-                                                                        np.exp(self.rate_hl[1])), 'k')
+                ax_dwell_hist.plot(self.hist_dwell_l[0], QntmJumpTrace._rate_fitf(self._lh_fit.params,
+                                                                                  self.hist_dwell_l[0]), 'k')
+                ax_dwell_hist.plot(self.hist_dwell_h[0], QntmJumpTrace._rate_fitf(self._hl_fit.params,
+                                                                                  self.hist_dwell_h[0]), 'k')
 
         ax_dwell_hist.set_yscale('log')
         ax_dwell_hist.set_title('histogram of dwell times')
@@ -436,7 +448,8 @@ class QntmJumpTrace:
                                   * self.fitresult_gauss.params['sig2'], alpha=0.4, color='tab:green')
             ax_trace.axhline(self.fitresult_gauss.params['mu2'].value, ls='dashed', color='tab:green')
 
-            ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
+            ax_trace.plot(np.arange(0, 400, 1), self.integrated_data_rot[0].real[:400], 'k.-',
+                          label='real rotated data')
             ax_trace.set_xlim(-1, 401)
 
             if self.fitresult_gauss.params['mu1'] < self.fitresult_gauss.params['mu2']:
@@ -456,7 +469,8 @@ class QntmJumpTrace:
                                   self._filter_params[1][1], alpha=0.4, color='tab:green')
             ax_trace.axhline(self._filter_params[0][1], ls='dashed', color='tab:green')
 
-            ax_trace.plot(np.arange(0, 400, 1), self.raw_data_rot[0].real[:400], 'k.-', label='real rotated data')
+            ax_trace.plot(np.arange(0, 400, 1), self.integrated_data_rot[0].real[:400], 'k.-',
+                          label='real rotated data')
             ax_trace.set_xlim(-1, 401)
 
             ax_trace.set_ylim(self._filter_params[0][0] - 3 * self._filter_params[1][0],
@@ -475,7 +489,8 @@ class QntmJumpTrace:
         ax_histy.set_title('histogram rot. data')
         ax_histy.legend()
 
-        ax_state_assign.plot(np.arange(0, 500, 1), self.raw_data_rot.real[0][:500], 'k.-', label='real rotated data')
+        ax_state_assign.plot(np.arange(0, 500, 1), self.integrated_data_rot.real[0][:500], 'k.-',
+                             label='real rotated data')
 
         if self._filter_params is None:
             ax_state_assign.plot(np.arange(0, 500, 1), (self.state_vec[0][:500]
@@ -532,9 +547,9 @@ class QntmJumpTrace:
         if self.fitresult_gauss is None:
             self._double_gauss_routine(n_bins, dbl_gauss_p0)
 
-        # calculating the error of R based on the fit uncertainties of c1, c2
-        R = self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value
-        self._err_R = np.sqrt((-self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value**2
+        # calculating the error of r based on the fit uncertainties of c1, c2
+        r = self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value
+        self._err_r = np.sqrt((-self.fitresult_gauss.params["c2"].value / self.fitresult_gauss.params["c1"].value**2
                                * self.fitresult_gauss.params["c1"].stderr)**2
                               + (1. / self.fitresult_gauss.params["c1"].value
                                  * self.fitresult_gauss.params["c2"].stderr)**2
@@ -564,12 +579,12 @@ class QntmJumpTrace:
         Gamma = out.params["Gamma"].value
         self._err_Gamma = out.params["Gamma"].stderr
 
-        Gamma1 = 2. * Gamma / (1. + R)
-        Gamma1_err = np.sqrt((2. / (1. + R) * self._err_Gamma)**2 + (-2. * Gamma / (1. + R)**2 * self._err_R)**2)
+        Gamma1 = 2. * Gamma / (1. + r)
+        Gamma1_err = np.sqrt((2. / (1. + r) * self._err_Gamma)**2 + (-2. * Gamma / (1. + r)**2 * self._err_r)**2)
 
-        Gamma2 = 2. * R * Gamma / (1. + R)
-        Gamma2_err = np.sqrt((2. * R / (1. + R) * self._err_Gamma)**2
-                             + ((2. * Gamma / (1. + R) - 2. * Gamma * R / (1. + R)**2) * self._err_R)**2)
+        Gamma2 = 2. * r * Gamma / (1. + r)
+        Gamma2_err = np.sqrt((2. * r / (1. + r) * self._err_Gamma)**2
+                             + ((2. * Gamma / (1. + r) - 2. * Gamma * r / (1. + r)**2) * self._err_r)**2)
 
         # multiply the rates with the integration number, because the PSD and its rates is calculated from the raw,
         # unintegrated data
