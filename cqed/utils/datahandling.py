@@ -4,6 +4,8 @@ from xarray import merge
 import numpy as np
 import scipy.linalg
 
+import warnings
+
 
 def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_dir='D:/Data'):
     """    
@@ -28,6 +30,7 @@ def create_local_dbase_in(folder_name='general', db_name='experiments.db', data_
 
 
 def db_to_xarray(ind, **kwargs):
+
     """
     Take a dataset from a qcodes database identified by its ID and transform it into a xarray.Dataset
     Wraps around the function load_by_run_spec, which allows to get data from different databases, if you supply
@@ -41,20 +44,9 @@ def db_to_xarray(ind, **kwargs):
     """
 
     d = load_by_run_spec(captured_run_id=ind, **kwargs)
-    _df = []
-    for obj in d.dependent_parameters:
-        _df += [d.get_data_as_pandas_dataframe()[obj.name].to_xarray()]
-
-    ds = merge([*_df])
-    ds.attrs['snapshot'] = d.snapshot
-    ds.attrs['exp_name'] = d.exp_name
-    ds.attrs['captured_run_id'] = d.captured_run_id
-    ds.attrs['sample_name'] = d.sample_name
-    ds.attrs['guid'] = d.guid
-    ds.attrs['run_timestamp_raw'] = d.run_timestamp_raw
-    ds.attrs['completed_timestamp_raw'] = d.completed_timestamp_raw
-
+    ds = d.to_xarray_dataset()
     return ds
+
 
 
 def max_variance_angle(data):
