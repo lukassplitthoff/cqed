@@ -34,6 +34,8 @@ def fit_resonator(array, fit_axis, fit_code='both', plot_fit=False, background_m
 
     array = merge([array, z])
 
+    # ToDo: make looping through fit_axis outermost loop
+
     if (fit_code == 'probst') or (fit_code == 'both'):
 
         fitresults_probst = np.zeros((getattr(array, fit_axis).shape[0], 15))
@@ -85,10 +87,11 @@ def fit_resonator(array, fit_axis, fit_code='both', plot_fit=False, background_m
 
             if plot_fit:
                 pass
-                # tba
+                # ToDo add plot function
 
         _fxB = []
         flan_names = list(model_flanigan.result.values.keys()) + ['internal_loss_err'] + ['coupling_loss_err']
+        # ToDo: transform coupling loss and internal loss and corresponding errors into Qi before saving?
         for ind, var_name in enumerate(flan_names):
             _fxB += [DataArray(fitresults_flanigan[:, ind], name='flan_' + var_name,
                                coords={fit_axis: getattr(array, fit_axis).values}, dims=[fit_axis])]
