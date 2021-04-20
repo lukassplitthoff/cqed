@@ -1,6 +1,8 @@
 from pathlib import Path
 from qcodes import initialise_or_create_database_at, config, load_by_run_spec
 from xarray import merge
+import numpy as np
+import scipy.linalg
 
 import warnings
 
@@ -44,3 +46,36 @@ def db_to_xarray(ind, **kwargs):
     d = load_by_run_spec(captured_run_id=ind, **kwargs)
     ds = d.to_xarray_dataset()
     return ds
+
+
+
+def max_variance_angle(data):
+    """
+    Find the angle of rotation for a complex dataset, which maximizes the variance of the data along the real axis
+    @param data: (array) raw data assumed to be complex
+    @return: (float) rotation angle that maximizes the variance in the real axis.
+    """
+    i = np.real(data)
+    q = np.imag(data)
+    cov = np.cov(i, q)
+    a = scipy.linalg.eig(cov)
+    eigvecs = a[1]
+
+    if a[0][1] > a[0][0]:
+        eigvec1 = eigvecs[:, 0]
+    else:
+        eigvec1 = eigvecs[:, 1]
+
+    theta = np.arctan(eigvec1[0] / eigvec1[1])
+    return theta
+
+
+def rotate_data(data, theta):
+    """
+    Rotate the complex data by a given angle theta
+    @param data: complex data to be rotated
+    @param theta: angle of rotation (radians)
+    @return: rotated complex array
+    """
+
+    return data * np.exp(1.j * theta)
