@@ -16,8 +16,9 @@ def fit_resonator(array, fit_axis, fit_code='both', plot_fit=False, background_m
         coordinate frequency, and at least one further coordinate
     @param fit_axis: coordinate of the xarray along which the fits should be performed
     @param fit_code: 'both', 'probst', 'flanigan' pick which fitting code to use
-    @param plot_fit: If True shows all raw data with fits overlay
-    @param flanigan_params: dictionary of parameters to set up the fitting model in the Flanigan code
+    @param plot_fit: If True shows all raw data with fits overlayed
+    @param background_model: name of background model used in the flanigan code. Must be one of {'Magnitude',
+    'MagnitudePhase', 'MagnitudePhaseDelay', 'MagnitudeSlopeOffsetPhaseDelay'}
     @return: xarray consisting of the raw input data plus the complex data, the complex data produced by the fit,
         and all fit parameters with fit_axis as coordinate.
     """
@@ -60,21 +61,23 @@ def fit_resonator(array, fit_axis, fit_code='both', plot_fit=False, background_m
             fitdicts[i] = model_flanigan.result
 
         if plot_fit:
-            # ToDo: fix plotting if not both algorithms are used.
             fig, axes = plt.subplots(1, 2, figsize=(10, 5))
             axes[0].plot(array.frequency.values, 20 * np.log10(np.abs(z_dat)), '.', c='k', mfc='none')
-            axes[0].plot(array.frequency.values, 20 * np.log10(np.abs(res_fit.z_data_sim)), color='tab:blue',
-                         label='probst')
-            see.magnitude_vs_frequency(resonator=model_flanigan, axes=axes[0], normalize=False, plot_data=False,
+            axes[1].plot(array.frequency.values, np.angle(z_dat) / np.pi * 180., '.', color='k', mfc='none')
+
+            if (fit_code == 'probst') or (fit_code == 'both'):
+                axes[0].plot(array.frequency.values, 20 * np.log10(np.abs(res_fit.z_data_sim)), color='tab:blue',
+                            label='probst', lw=1.5)
+                axes[1].plot(array.frequency.values, np.angle(res_fit.z_data_sim) / np.pi * 180., color='tab:blue',
+                             label='probst', lw=1.5)
+
+            if (fit_code == 'flanigan') or (fit_code == 'both'):
+                see.magnitude_vs_frequency(resonator=model_flanigan, axes=axes[0], normalize=False, plot_data=False,
+                                           fit_settings={'color': 'tab:orange', 'label': 'flanigan', 'linewidth': 1.5},
+                                           plot_resonance=False)
+                see.phase_vs_frequency(resonator=model_flanigan, axes=axes[1], normalize=False, plot_data=False,
                                        fit_settings={'color': 'tab:orange', 'label': 'flanigan', 'linewidth': 1.5},
                                        plot_resonance=False)
-
-            axes[1].plot(array.frequency.values, np.angle(z_dat)/np.pi * 180., '.', color='k', mfc='none')
-            axes[1].plot(array.frequency.values, np.angle(res_fit.z_data_sim)/np.pi * 180., color='tab:blue',
-                         label='probst')
-            see.phase_vs_frequency(resonator=model_flanigan, axes=axes[1], normalize=False, plot_data=False,
-                                   fit_settings={'color': 'tab:orange', 'label': 'flanigan', 'linewidth': 1.5},
-                                   plot_resonance=False)
             axes[0].legend()
 
 
