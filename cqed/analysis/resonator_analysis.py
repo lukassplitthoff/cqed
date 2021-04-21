@@ -80,7 +80,6 @@ def fit_resonator(array, fit_axis, fit_code='both', plot_fit=False, background_m
                                        plot_resonance=False)
             axes[0].legend()
 
-
     _fxA = []
     for i in range(fitresults_probst.shape[1]):
         _fxA += [DataArray(fitresults_probst[:, i], name='probst_'+list(res_fit.fitresults.keys())[i],
