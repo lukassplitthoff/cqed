@@ -67,7 +67,7 @@ def fit_resonator(array, fit_axis, fit_code='both', plot_fit=False, background_m
 
             if (fit_code == 'probst') or (fit_code == 'both'):
                 axes[0].plot(array.frequency.values, 20 * np.log10(np.abs(res_fit.z_data_sim)), color='tab:blue',
-                            label='probst', lw=1.5)
+                             label='probst', lw=1.5)
                 axes[1].plot(array.frequency.values, np.angle(res_fit.z_data_sim) / np.pi * 180., color='tab:blue',
                              label='probst', lw=1.5)
 
