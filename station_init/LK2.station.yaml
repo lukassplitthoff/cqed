@@ -46,7 +46,7 @@ instruments:
     
   Keithley3:
     type: qcodes.instrument_drivers.tektronix.Keithley_2000.Keithley_2000
-    address: GPIB0::13::INSTR
+    address: GPIB0::11::INSTR
     enable_forced_reconnect: true
 
 #################################

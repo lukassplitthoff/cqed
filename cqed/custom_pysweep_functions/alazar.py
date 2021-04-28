@@ -705,7 +705,7 @@ def measure_QPP(controller, acq_time, navg, suffix='', SR=250e6, setup_awg=True,
         station.LO.off()
 
         timestamp = int(time.time()*1e6)
-        datasaver_run_id = d["DATASAVER"].datasaver._dataset.run_id
+        datasaver_run_id = d["DATASET"].run_id
         data_folder_path = str(qcodes.config.core.db_location)[:-3]+"\\"
         Path(data_folder_path).mkdir(parents=True, exist_ok=True)
         np.save(data_folder_path+"ID_" +
