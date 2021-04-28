@@ -28,7 +28,7 @@ def _convert_to_dBm(ys):
     """
     return 20 * np.log10(ys)
 
-def find_peak_literal(fs, ys, dip=False, dBm=False):
+def find_peak_literal(fs, ys, dip=False, dBm=False, smooth=False, window=1e6):
     """ 
     Finds the frequency belonging to the literal maximal amplitude of a trace.
 
@@ -45,6 +45,9 @@ def find_peak_literal(fs, ys, dip=False, dBm=False):
         ys = _dip_to_peak(ys)
     if dBm==True:
         ys = _convert_to_dBm(ys)
+    if smooth==True:            
+        min_peakwidth = window / (fs[1] - fs[0])
+        ys = signal.savgol_filter(ys, max(_round_up_to_odd(min_peakwidth * 3), 3), 2) #window length must be odd and >= polyorder
 
     return fs[np.argmax(ys)]
 
