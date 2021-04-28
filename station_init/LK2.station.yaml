@@ -18,12 +18,12 @@ instruments:
   #   enable_forced_reconnect: true 
 
   yoko_x:
-    type: qcodes.instrument_drivers.yokogawa.GS610.GS610
+    type: cqed.instrument_drivers.yokogawa.GS610.GS610
     address: TCPIP0::192.168.6.111::7655::SOCKET
     enable_forced_reconnect: true 
 
   yoko_y:
-    type: qcodes.instrument_drivers.yokogawa.GS610.GS610
+    type: cqed.instrument_drivers.yokogawa.GS610.GS610
     address: GPIB0::7::INSTR
     enable_forced_reconnect: true 
 
