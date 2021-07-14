@@ -1,0 +1,78 @@
+instruments:
+
+  vna:
+    type: qcodes.instrument_drivers.rohde_schwarz.ZNB.ZNB
+    address: TCPIP::169.254.62.18::inst0::INSTR 
+    enable_forced_reconnect: true
+    init:
+      init_s_params: false
+  
+  mgnt:
+    type: qcodes.instrument_drivers.oxford.MercuryiPS_VISA.MercuryiPS
+    address: TCPIP0::192.168.6.73::7020::SOCKET
+    enable_forced_reconnect: true
+
+  # yoko_x:
+  #   type: qcodes.instrument_drivers.yokogawa.GS200.GS200
+  #   address: TCPIP::192.168.6.74::INSTR
+  #   enable_forced_reconnect: true 
+
+  yoko_x:
+    type: qcodes.instrument_drivers.yokogawa.GS610.GS610
+    address: TCPIP0::192.168.6.111::7655::SOCKET
+    enable_forced_reconnect: true 
+
+  yoko_y:
+    type: qcodes.instrument_drivers.yokogawa.GS610.GS610
+    address: GPIB0::7::INSTR
+    enable_forced_reconnect: true 
+
+  ivvi:
+    type:  qcodes_contrib_drivers.drivers.QuTech.IVVI.IVVI
+    address: ASRL3
+    enable_forced_reconnect: true
+    init:
+      numdacs: 16
+
+  TWPA:
+    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
+    address: TCPIP0::192.168.6.70
+    enable_forced_reconnect: true
+
+  qubsrc:
+    type: qcodes.instrument_drivers.agilent.E8267C.E8267
+    address: GPIB0::29::INSTR
+    enable_forced_reconnect: true
+    
+  Keithley3:
+    type: qcodes.instrument_drivers.tektronix.Keithley_2000.Keithley_2000
+    address: GPIB0::13::INSTR
+    enable_forced_reconnect: true
+
+#################################
+# Alazar measurement components #
+#################################
+  alazar:
+    type: qcodes.instrument_drivers.AlazarTech.ATS9870.AlazarTech_ATS9870
+    enable_forced_reconnect: true
+
+  awg:
+    type: qcodes.instrument_drivers.tektronix.AWG5014.Tektronix_AWG5014
+    address: TCPIP0::192.168.6.166::inst0::INSTR
+    enable_forced_reconnect: true
+
+  LO:
+    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
+    address: TCPIP0::192.168.6.69
+    enable_forced_reconnect: true
+
+  RF:
+    type: qcodes.instrument_drivers.rohde_schwarz.SGS100A.RohdeSchwarz_SGS100A
+    address: TCPIP0::192.168.6.68
+    enable_forced_reconnect: true     
+
+  fg:
+    type: qcodes.instrument_drivers.rigol.DG1062.DG1062
+    address: TCPIP0::192.168.6.165
+    enable_forced_reconnect: true
+
