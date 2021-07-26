@@ -564,7 +564,7 @@ def measure_cw_point(suffix='', **kwargs):
     return measurement_function
 
 
-def measure_twotone_sweep(frequencies, cw_frequency='dict', qubsrc_power=None, settling_time=10e-6, suffix='', **kwargs):
+def measure_twotone_sweep(frequencies, cw_frequency='dict', qubsrc_power=None, frequency_selector=None, power_selector=None, use_frequencies=True, settling_time=10e-6, suffix='', **kwargs):
     """Pysweep VNA measurement function that creates a quasi-hardware sweep for doing two-tone spectroscopy. 
     In essence it combines doing measure_cw_point versus a sweep object of frequencies into a single measurement function.
     By creating a dedicated measurement function for this, one can easily wrap it with other functions,
@@ -591,6 +591,18 @@ def measure_twotone_sweep(frequencies, cw_frequency='dict', qubsrc_power=None, s
         station = d["STATION"]
         station.qubsrc.output_rf('ON')
         station.qubsrc.modulation_rf('OFF')
+
+        nonlocal frequencies
+        nonlocal qubsrc_power
+
+        if frequency_selector is not None:
+            freqs, qub_est = frequency_selector(d["f0"])
+
+        if use_frequencies==False:
+            frequencies = freqs
+
+        if power_selector is not None:
+            qubsrc_power = power_selector(qub_est)
 
         if qubsrc_power != None:
             station.qubsrc.power(qubsrc_power)
@@ -634,7 +646,70 @@ def measure_twotone_sweep(frequencies, cw_frequency='dict', qubsrc_power=None, s
     ])
 
 
-def measure_qubit_frequency(frequencies, suffix='', save_trace=True, peak_finder=None, **kwargs):
+def measure_twotone_sweep_vary_power(frequencies, power_selector, cw_frequency='dict', frequency_selector=None, \
+                                     use_frequencies=True, settling_time=10e-6, suffix='', **kwargs):
+    """This is like measure_twotone_sweep, but slightly changed to vary the qubit source power for different frequencies. 
+    We will probably only use it for one measurement. After that it can be deleted again.
+    """
+    def measurement_function(d):
+        station = d["STATION"]
+        station.qubsrc.output_rf('ON')
+        station.qubsrc.modulation_rf('OFF')
+
+        nonlocal frequencies
+        # nonlocal qubsrc_power
+
+        if use_frequencies==False:
+            frequencies = freqs
+
+        # if power_selector is not None:
+        #     qubsrc_power = power_selector(qub_est)
+
+        # if qubsrc_power != None:
+        #     station.qubsrc.power(qubsrc_power)
+
+        mag = np.zeros_like(frequencies)
+        phase = np.zeros_like(frequencies)
+
+        if cw_frequency == 'dict':
+            setup_CW_sweep(station=station, cw_frequency=d["f0"], **kwargs)
+        elif cw_frequency is not None or bool(kwargs):
+            setup_CW_sweep(station=station,
+                           cw_frequency=cw_frequency, **kwargs)
+
+        for ii in range(len(frequencies)):
+            station.qubsrc.frequency(frequencies[ii])
+            station.qubsrc.power(power_selector(frequencies[ii]))
+            time.sleep(settling_time)
+            data = measure_cw_point()(d)
+            mag[ii] = data[0]
+            phase[ii] = data[1]
+
+        station.qubsrc.output_rf('OFF')
+
+        return [frequencies, mag, phase]
+
+    return MeasurementFunction(measurement_function, [
+        DataParameter(name="frequency" + str(suffix),
+                      unit="Hz",
+                      paramtype="array",
+                      independent=2,
+                      ),
+        DataParameter(name="amplitude" + str(suffix),
+                      unit="",
+                      paramtype="array",
+                      extra_dependencies=["frequency" + str(suffix)],
+                      ),
+        DataParameter(name="phase" + str(suffix),
+                      unit="rad",
+                      paramtype="array",
+                      extra_dependencies=["frequency" + str(suffix)],
+                      ),
+    ])
+
+
+
+def measure_qubit_frequency(suffix='', save_trace=True, peak_finder=None, **kwargs):
     """Pysweep VNA measurement function that measures a qubit frequency `fq` and stores it in the dictionary, 
     similar to 'measure_resonance_frequency'. 
 
@@ -650,10 +725,8 @@ def measure_qubit_frequency(frequencies, suffix='', save_trace=True, peak_finder
     Pysweep measurement function
     """
     def measurement_function(d):
-        freqs, mag, phase = measure_twotone_sweep(
-            frequencies=frequencies, **kwargs)(d)
-
-        m0 = peak_finder(freqs, mag)
+        frequencies, mag, phase = measure_twotone_sweep(**kwargs)(d)
+        m0 = peak_finder(frequencies, mag)
 
         if m0 == None:
             raise Exception(

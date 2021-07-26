@@ -3,7 +3,7 @@ from qcodes import initialise_or_create_database_at, config, load_by_run_spec
 from xarray import merge
 import numpy as np
 import scipy.linalg
-
+import json
 import warnings
 
 
@@ -79,3 +79,28 @@ def rotate_data(data, theta):
     """
 
     return data * np.exp(1.j * theta)
+
+def add_info_ds(ds):
+    snap = json.loads(ds.snapshot)
+    
+    power_read = snap['station']['instruments']['vna']['submodules']['channels']['channels']['vna_S21']['parameters']['power']['value']
+    ds.attrs['readout_power'] = power_read
+    
+    power_drive = snap['station']['instruments']['qubsrc']['parameters']['power']['value']
+    ds.attrs['drive_power'] = power_drive
+    
+    bandwidth = snap['station']['instruments']['vna']['submodules']['channels']['channels']['vna_S21']['parameters']['bandwidth']['value']
+    ds.attrs['bandwidth'] = bandwidth
+    
+    cw = snap['station']['instruments']['vna']['submodules']['channels']['channels']['vna_S21']['parameters']['sweep_type']['value']
+    if (cw=='CW_Point'):
+        frequency=snap['station']['instruments']['vna']['submodules']['channels']['channels']['vna_S21']['parameters']['cw_frequency']['value']
+        ds.attrs['cw_frequency'] = frequency
+    
+    z_field = snap['station']['parameters']['z_field']['value']
+    ds.attrs['z_field'] = z_field
+    
+    x_field = snap['station']['parameters']['x_field']['value']
+    ds.attrs['x_field'] = x_field
+    
+    return ds
