@@ -1,3 +1,7 @@
+# author: leiden cryogenics, Sasha
+# date: July 26, 2021
+# purpose: python interface with LC LabView program
+
 import win32com.client
 import time
 
